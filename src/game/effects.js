@@ -7,14 +7,15 @@
 
 import * as THREE from 'three';
 import { sampleCurve } from '../data/loader.js';
-import { COLORS } from '../core/config.js';
+import { COLORS, BLOOM } from '../core/config.js';
 
 export class Effects {
-  constructor({ scene, grid, ship, lights }) {
+  constructor({ scene, grid, ship, lights, post }) {
     this.scene = scene;
     this.grid = grid;
     this.ship = ship;
     this.lights = lights;
+    this.post = post;
 
     this.cCyan = new THREE.Color(COLORS.cyan);
     this.cMagenta = new THREE.Color(COLORS.magenta);
@@ -69,11 +70,16 @@ export class Effects {
     const temp = this._temp.copy(this.cMagenta).lerp(this.cCyan, centroid);
 
     // --- 10B grid brightness (master rms) + bloom kick ---
-    let rms = sampleCurve(c.master_rms, songTime);
-    rms = Math.min(1, rms + this.bloom * 0.5);
-    this.bloom = Math.max(0, this.bloom - delta * 1.5);
+    const masterRms = sampleCurve(c.master_rms, songTime);
+    const kick = this.bloom;                              // current accent punch
+    this.bloom = Math.max(0, this.bloom - delta * BLOOM.kickDecay);
+    const rms = Math.min(1, masterRms + kick * 0.5);
     this.grid.setBrightness(0.2 + rms * 0.6, this._temp2.copy(temp).multiplyScalar(0.45 + rms * 0.55));
     this.grid.setColor(this._temp2.copy(temp).multiplyScalar(0.6));
+
+    // drive UnrealBloom with the music: the scene breathes light with energy,
+    // and `bloom` effect events (section boundaries / accents) punch it up.
+    if (this.post) this.post.setStrength(BLOOM.strength + masterRms * BLOOM.energyBoost + kick * BLOOM.kick);
 
     // --- 10D lighting (piano rms) ---
     const piano = sampleCurve(c.piano_rms, songTime);

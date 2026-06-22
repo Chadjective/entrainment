@@ -12,12 +12,13 @@ import { Ship } from './game/ship.js';
 import { EntityManager } from './game/entities.js';
 import { BulletManager } from './game/bullets.js';
 import { Effects } from './game/effects.js';
+import { Post } from './game/post.js';
 import { checkShip } from './game/collision.js';
 import { AudioEngine } from './audio/engine.js';
 import { UI, loadHighScore, saveHighScore } from './ui/ui.js';
 import { Input } from './input/input.js';
 import { sectionAt } from './data/loader.js';
-import { SPEED, SCORE, MIX, SCENE } from './core/config.js';
+import { SPEED, SCORE, MIX, SCENE, BLOOM } from './core/config.js';
 
 const STATE = { LOADING: 'LOADING', MENU: 'MENU', COUNTDOWN: 'COUNTDOWN', PLAYING: 'PLAYING', DEAD: 'DEAD', REWARD: 'REWARD' };
 
@@ -31,7 +32,8 @@ class Game {
     this.ship = new Ship(scene);
     this.entities = new EntityManager(scene);
     this.bullets = new BulletManager(scene);
-    this.effects = new Effects({ scene, grid: this.grid, ship: this.ship, lights });
+    this.post = new Post(renderer, scene, camera);
+    this.effects = new Effects({ scene, grid: this.grid, ship: this.ship, lights, post: this.post });
     this.audio = new AudioEngine();
     this.ui = new UI();
     this.input = new Input(renderer.domElement, { onPause: () => this.togglePause() });
@@ -176,7 +178,7 @@ class Game {
       case STATE.DEAD: this.updateDeath(delta); break;
       default: break;
     }
-    this.renderer.render(this.scene, this.camera);
+    this.post.render();
   }
 
   updateMenu(delta) {
@@ -184,6 +186,7 @@ class Game {
     this.camera.position.x = Math.sin(this.time * 0.2) * 1.5;
     this.camera.position.y = 3.5 + Math.sin(this.time * 0.15) * 0.4;
     this.camera.lookAt(0, 1.0, -20);
+    this.post.setStrength(BLOOM.strength);
   }
 
   updateCountdown(delta) {

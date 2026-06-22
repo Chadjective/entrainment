@@ -106,6 +106,17 @@ export const AUDIO = {
   endThreshold: 0.1,
 };
 
+// Post-processing — UnrealBloom (neon glow). Strength is modulated by music.
+export const BLOOM = {
+  strength: 0.85,     // base bloom
+  radius: 0.5,
+  threshold: 0.2,     // only bright neon (> this luminance) blooms; dark bg doesn't
+  energyBoost: 0.7,   // added at full master_rms (the scene breathes with energy)
+  kick: 0.6,          // extra punch from a `bloom` effect event
+  kickDecay: 1.5,     // per-second decay of the kick
+  max: 2.2,           // safety clamp
+};
+
 // Stem indices (see spec System 2 architecture)
 export const STEMS = {
   piano: 0,

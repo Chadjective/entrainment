@@ -1,0 +1,125 @@
+// ============================================================================
+// System 5 — Grid floor: scrolling horizontal lines, fixed vertical lines,
+// translucent track walls, starfield, and a rotating wireframe sun.
+// ============================================================================
+
+import * as THREE from 'three';
+import { GRID, SPEED, COLORS, SCENE } from '../core/config.js';
+
+export class Grid {
+  constructor(scene) {
+    this.group = new THREE.Group();
+    this.floorGroup = new THREE.Group(); // the part that beat-pulses
+    this.group.add(this.floorGroup);
+    scene.add(this.group);
+
+    this.tempo = 110;
+
+    // shared materials so effects can recolor / dim the whole grid at once
+    this.hMaterial = new THREE.LineBasicMaterial({ color: COLORS.gridDim, transparent: true, opacity: 0.5 });
+    this.vMaterial = new THREE.LineBasicMaterial({ color: COLORS.gridDim, transparent: true, opacity: 0.35 });
+    this.wallMaterial = new THREE.MeshBasicMaterial({ color: COLORS.wall, transparent: true, opacity: 0.15 });
+    this.wallEdgeMaterial = new THREE.LineBasicMaterial({ color: COLORS.wall, transparent: true, opacity: 0.6 });
+
+    this._buildHorizontal();
+    this._buildVertical();
+    this._buildWalls();
+    this._buildStars();
+    this._buildSun();
+  }
+
+  _buildHorizontal() {
+    this.hLines = [];
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(GRID.vMinX, 0, 0),
+      new THREE.Vector3(GRID.vMaxX, 0, 0),
+    ]);
+    for (let i = 0; i < GRID.hLineCount; i++) {
+      const line = new THREE.Line(geo, this.hMaterial);
+      line.position.z = GRID.hStart - i * GRID.hSpacing;
+      this.hLines.push(line);
+      this.floorGroup.add(line);
+    }
+  }
+
+  _buildVertical() {
+    for (let x = GRID.vMinX; x <= GRID.vMaxX; x += GRID.vSpacing) {
+      const geo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(x, 0, GRID.vStartZ),
+        new THREE.Vector3(x, 0, GRID.vEndZ),
+      ]);
+      this.floorGroup.add(new THREE.Line(geo, this.vMaterial));
+    }
+  }
+
+  _buildWalls() {
+    this.walls = [];
+    for (const sign of [-1, 1]) {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.5, 200), this.wallMaterial);
+      wall.position.set(sign * GRID.wallX, 0.75, -42);
+      this.group.add(wall);
+      this.walls.push(wall);
+
+      for (const y of [0.05, 1.45]) {
+        const geo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(sign * GRID.wallX, y, GRID.vStartZ),
+          new THREE.Vector3(sign * GRID.wallX, y, -120),
+        ]);
+        this.group.add(new THREE.Line(geo, this.wallEdgeMaterial));
+      }
+    }
+  }
+
+  _buildStars() {
+    const positions = new Float32Array(GRID.starCount * 3);
+    for (let i = 0; i < GRID.starCount; i++) {
+      positions[i * 3] = (Math.random() * 2 - 1) * 75;
+      positions[i * 3 + 1] = 5 + Math.random() * 60;
+      positions[i * 3 + 2] = -90 + Math.random() * 150;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({ color: COLORS.star, size: 0.15, transparent: true, opacity: 0.8 });
+    this.group.add(new THREE.Points(geo, mat));
+  }
+
+  _buildSun() {
+    const wire = new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(8, 1));
+    this.sun = new THREE.LineSegments(wire, new THREE.LineBasicMaterial({ color: COLORS.cyan, transparent: true, opacity: 0.3 }));
+    this.sun.position.set(0, 8, -100);
+    this.group.add(this.sun);
+  }
+
+  // --- effects hooks ------------------------------------------------------
+  setBrightness(opacity, color) {
+    this.hMaterial.opacity = opacity;
+    if (color) this.hMaterial.color.copy(color);
+  }
+
+  setColor(color) {
+    this.vMaterial.color.copy(color);
+    this.wallMaterial.color.copy(color);
+    this.wallEdgeMaterial.color.copy(color);
+  }
+
+  setPulse(scale) {
+    this.floorGroup.scale.set(scale, 1, scale);
+  }
+
+  // --- per-frame ----------------------------------------------------------
+  update(delta, speed) {
+    const dz = (speed + SPEED.gridBonus) * 60 * delta;
+    for (const line of this.hLines) {
+      line.position.z += dz;
+      if (line.position.z > GRID.resetZ) line.position.z -= GRID.hLineCount * GRID.hSpacing;
+    }
+    this.sun.rotation.y += 0.001 * (this.tempo / 80) * delta * 60;
+  }
+
+  reset() {
+    for (let i = 0; i < this.hLines.length; i++) {
+      this.hLines[i].position.z = GRID.hStart - i * GRID.hSpacing;
+    }
+    this.floorGroup.scale.set(1, 1, 1);
+  }
+}

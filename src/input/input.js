@@ -1,0 +1,49 @@
+// ============================================================================
+// System 13 — Input. Keyboard (arrows/WASD + space + escape) and touch
+// (left / right / center-fire thirds with auto-fire). Exposes a steer value
+// and a firing flag the game loop reads each frame.
+// ============================================================================
+
+export class Input {
+  constructor(domElement, handlers = {}) {
+    this.keys = {};
+    this.touchDir = null;
+    this.handlers = handlers;
+    this.el = domElement;
+
+    window.addEventListener('keydown', (e) => {
+      this.keys[e.key] = true;
+      if (e.key === ' ') e.preventDefault();
+      if (e.key === 'Escape') handlers.onPause?.();
+    });
+    window.addEventListener('keyup', (e) => { this.keys[e.key] = false; });
+
+    const zone = (clientX) => {
+      const rect = this.el.getBoundingClientRect();
+      const rx = (clientX - rect.left) / rect.width;
+      if (rx < 0.33) return 'left';
+      if (rx > 0.66) return 'right';
+      return 'center';
+    };
+
+    const onTouch = (e) => {
+      e.preventDefault();
+      if (!e.touches.length) { this.touchDir = null; return; }
+      this.touchDir = zone(e.touches[0].clientX);
+    };
+    this.el.addEventListener('touchstart', onTouch, { passive: false });
+    this.el.addEventListener('touchmove', onTouch, { passive: false });
+    this.el.addEventListener('touchend', (e) => { e.preventDefault(); this.touchDir = null; }, { passive: false });
+  }
+
+  getSteer() {
+    let s = 0;
+    if (this.keys['ArrowLeft'] || this.keys['a'] || this.keys['A'] || this.touchDir === 'left') s -= 1;
+    if (this.keys['ArrowRight'] || this.keys['d'] || this.keys['D'] || this.touchDir === 'right') s += 1;
+    return s;
+  }
+
+  isFiring() {
+    return !!(this.keys[' '] || this.touchDir === 'center');
+  }
+}

@@ -1,0 +1,4 @@
+# Drop real stem WAVs here to replace the procedural placeholder song:
+#   piano.wav  synth_pad.wav  guitar.wav  percussion.wav  reward1.wav  reward2.wav
+# All must be 44.1kHz and identical length (pad with silence). The engine
+# auto-detects them (with assets/data/event-map.json) and skips the placeholder.

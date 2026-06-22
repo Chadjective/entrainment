@@ -1,0 +1,2 @@
+# Drop a built event-map.json here (produced by tools/build-map.py) to drive
+# the game from real assets. If absent, the game generates a procedural map.

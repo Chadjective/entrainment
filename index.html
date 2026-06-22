@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#080818" />
+  <title>ENTRAINMENT — Level 01</title>
+  <style>
+    :root {
+      --cyan: #00ffff;
+      --magenta: #ff00ff;
+      --gold: #ffd700;
+      --bg: #080818;
+      --mono: 'SFMono-Regular', 'Consolas', 'Menlo', 'Courier New', monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg); color: #fff;
+      font-family: var(--mono);
+      -webkit-user-select: none; user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
+    }
+    #app { position: fixed; inset: 0; }
+    canvas { display: block; }
+
+    /* ---- shared overlay ---- */
+    .overlay {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; gap: 1.1rem;
+      pointer-events: none;
+      transition: opacity 0.6s ease;
+      z-index: 10;
+    }
+    .overlay.dim { background: rgba(8, 8, 24, 0.88); }
+    .overlay.hidden { opacity: 0; pointer-events: none !important; }
+    .overlay .panel { display: flex; flex-direction: column; align-items: center; gap: 1.1rem; }
+    .overlay button {
+      pointer-events: auto;
+      background: transparent;
+      border: 1px solid var(--cyan);
+      color: var(--cyan);
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      letter-spacing: 0.25em;
+      padding: 14px 48px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+    }
+    .overlay button:hover { background: rgba(0, 255, 255, 0.12); box-shadow: 0 0 24px rgba(0,255,255,0.4); }
+    .overlay button.gold { border-color: var(--gold); color: var(--gold); }
+    .overlay button.gold:hover { background: rgba(255, 215, 0, 0.12); box-shadow: 0 0 24px rgba(255,215,0,0.4); }
+
+    .title { font-size: 2.5rem; color: var(--cyan); letter-spacing: 0.35em; text-shadow: 0 0 30px var(--cyan); }
+    .subtitle { font-size: 0.85rem; color: var(--magenta); letter-spacing: 0.25em; }
+    .note { font-size: 0.7rem; color: #888; letter-spacing: 0.15em; }
+    .controls-hint { font-size: 0.65rem; color: #445566; letter-spacing: 0.2em; line-height: 1.8; }
+
+    /* ---- loading ---- */
+    #loading-bar-track { width: 220px; height: 2px; background: #1a1a3a; }
+    #loading-bar-fill { height: 100%; width: 0%; background: var(--cyan); box-shadow: 0 0 12px var(--cyan); transition: width 0.2s ease; }
+    #loading-pct { font-size: 0.7rem; color: var(--cyan); letter-spacing: 0.3em; }
+
+    /* ---- countdown ---- */
+    #countdown {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 4rem; color: var(--cyan); text-shadow: 0 0 40px var(--cyan);
+      pointer-events: none; z-index: 12; opacity: 0;
+    }
+
+    /* ---- HUD ---- */
+    #hud { position: fixed; inset: 0; pointer-events: none; z-index: 8; opacity: 0; transition: opacity 0.3s; }
+    #hud.show { opacity: 1; }
+    .hud-corner { position: fixed; top: 16px; }
+    #hud-score { left: 16px; text-align: left; }
+    #hud-kills { right: 16px; text-align: right; }
+    .hud-label { font-size: 0.6em; opacity: 0.5; letter-spacing: 0.2em; }
+    .hud-value { font-size: 0.85rem; color: var(--cyan); text-shadow: 0 0 14px var(--cyan); letter-spacing: 0.12em; }
+    #hud-streak {
+      position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
+      font-size: 0.75rem; color: var(--gold); letter-spacing: 0.2em; text-shadow: 0 0 16px var(--gold);
+      opacity: 0; transition: opacity 0.4s;
+    }
+    #hud-flash {
+      position: fixed; inset: 0; background: var(--cyan); opacity: 0; pointer-events: none;
+      mix-blend-mode: screen;
+    }
+
+    /* ---- death text ---- */
+    #death-text {
+      font-size: 0.8rem; color: var(--magenta); opacity: 0; letter-spacing: 0.3em;
+      transition: opacity 1s ease;
+    }
+
+    /* ---- reward stats ---- */
+    .reward-score { font-size: 2.5rem; color: var(--cyan); text-shadow: 0 0 30px var(--cyan); letter-spacing: 0.1em; }
+    .reward-title { font-size: 1.2rem; color: var(--cyan); letter-spacing: 0.2em; }
+    .reward-complete { font-size: 0.8rem; color: var(--magenta); letter-spacing: 0.3em; }
+    .reward-newhigh { font-size: 0.8rem; color: var(--gold); letter-spacing: 0.25em; animation: pulse 1.2s ease-in-out infinite; }
+    .reward-stats { font-size: 0.75rem; color: #667788; letter-spacing: 0.15em; line-height: 2; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+    /* ---- pause button ---- */
+    #pause-btn {
+      position: fixed; top: 14px; right: 50%; transform: translateX(50%);
+      display: none; z-index: 9; pointer-events: auto; cursor: pointer;
+      font-size: 1rem; color: var(--cyan); opacity: 0.6; padding: 6px 10px;
+    }
+    #pause-btn.show { display: block; }
+
+    .countdown-anim { animation: shrinkIn 0.8s ease-out; }
+    @keyframes shrinkIn { from { transform: scale(1.5); opacity: 0; } to { transform: scale(1.0); opacity: 1; } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- LOADING -->
+  <div id="loading" class="overlay dim">
+    <div class="panel">
+      <div class="title">ENTRAINMENT</div>
+      <div id="loading-pct">0%</div>
+      <div id="loading-bar-track"><div id="loading-bar-fill"></div></div>
+      <div class="note">INITIALIZING SIGNAL</div>
+    </div>
+  </div>
+
+  <!-- MENU -->
+  <div id="menu" class="overlay dim hidden">
+    <div class="panel">
+      <div class="title">ENTRAINMENT</div>
+      <div class="subtitle">RETRO FUTURISM — LEVEL 01</div>
+      <div class="note">🎧 HEADPHONES RECOMMENDED</div>
+      <button id="launch-btn">LAUNCH</button>
+      <div class="controls-hint">
+        ← → STEER &nbsp;&nbsp; SPACE SHOOT &nbsp;&nbsp; ESC PAUSE<br />
+        MOBILE: LEFT / RIGHT · CENTER FIRE
+      </div>
+    </div>
+  </div>
+
+  <!-- COUNTDOWN -->
+  <div id="countdown"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="hud-flash"></div>
+    <div id="hud-score" class="hud-corner">
+      <div class="hud-label">SCORE</div>
+      <div class="hud-value" id="hud-score-value">0</div>
+    </div>
+    <div id="hud-kills" class="hud-corner">
+      <div class="hud-label">KILLS</div>
+      <div class="hud-value" id="hud-kills-value">0</div>
+    </div>
+    <div id="hud-streak">×1.0</div>
+  </div>
+  <div id="pause-btn">⏸</div>
+
+  <!-- DEATH -->
+  <div id="death" class="overlay hidden">
+    <div class="panel">
+      <div id="death-text">THE SONG CONTINUES…</div>
+      <button id="reenter-btn" style="opacity:0; transition: opacity 1s;">RE-ENTER</button>
+    </div>
+  </div>
+
+  <!-- PAUSE -->
+  <div id="pause" class="overlay dim hidden">
+    <div class="panel">
+      <div class="title" style="font-size:1.6rem;">PAUSED</div>
+      <button id="resume-btn">RESUME</button>
+      <button id="quit-btn">QUIT</button>
+    </div>
+  </div>
+
+  <!-- REWARD -->
+  <div id="reward" class="overlay dim hidden">
+    <div class="panel">
+      <div class="reward-title" id="reward-song">TYRELL CORPORATION</div>
+      <div class="reward-complete">COMPLETE</div>
+      <div class="reward-score" id="reward-score">0</div>
+      <div class="reward-newhigh" id="reward-newhigh" style="display:none;">NEW HIGH SCORE</div>
+      <div class="reward-stats" id="reward-stats"></div>
+      <button id="download-btn" class="gold">DOWNLOAD THE ALBUM</button>
+      <button id="playagain-btn">PLAY AGAIN</button>
+      <button id="share-btn">SHARE</button>
+    </div>
+  </div>
+
+  <script type="module" src="/src/index.js"></script>
+</body>
+</html>

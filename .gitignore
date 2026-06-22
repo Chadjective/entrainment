@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+tools/__pycache__/
+# generated intermediates from the build pipeline
+tools/events.json
+tools/analysis.json

@@ -18,7 +18,7 @@ import { AudioEngine } from './audio/engine.js';
 import { UI, loadHighScore, saveHighScore } from './ui/ui.js';
 import { Input } from './input/input.js';
 import { sectionAt } from './data/loader.js';
-import { SPEED, SCORE, MIX, SCENE, BLOOM } from './core/config.js';
+import { SPEED, SCORE, MIX, SCENE, BLOOM, SHIELD, GRAZE } from './core/config.js';
 
 const STATE = { LOADING: 'LOADING', MENU: 'MENU', COUNTDOWN: 'COUNTDOWN', PLAYING: 'PLAYING', DEAD: 'DEAD', REWARD: 'REWARD' };
 
@@ -57,7 +57,7 @@ class Game {
   }
 
   _resetStats() {
-    this.stats = { score: 0, kills: 0, streak: 1.0, bestStreak: 1.0, nearMisses: 0 };
+    this.stats = { score: 0, kills: 0, streak: 1.0, bestStreak: 1.0, nearMisses: 0, grazes: 0 };
     this.survivalTime = 0;
     this.killGain = 0;
     this.survivalApplied = -1;
@@ -68,6 +68,9 @@ class Game {
     this.deathTextShown = false;
     this.reenterShown = false;
     this.deathEndDelay = 0;
+    // Gameplay #1 — shield
+    this.shieldCharges = SHIELD.max;
+    this.shieldRegen = 0;
   }
 
   async init() {
@@ -96,6 +99,7 @@ class Game {
     this.countdownStep = -1;
     this.ship.setVisible(true);
     this.ship.reset();
+    this.ship.setShield(this.shieldCharges);
     this.camera.position.set(...SCENE.camPos);
     this.ui.showCountdown();
   }
@@ -103,6 +107,8 @@ class Game {
   async startPlaying() {
     this.state = STATE.PLAYING;
     this.ui.showHud();
+    this.ui.setShield(this.shieldCharges, SHIELD.max);
+    this.ui.setGraze(0);
     await this.audio.start();
   }
 
@@ -117,6 +123,7 @@ class Game {
     this.deathEndDelay = 0;
     this.deathCamStart = this.camera.position.clone();
     this.ui.showDeath();
+    this.ui.setGraze(0);
     // commit best streak
     this.stats.streak = 1.0;
     this.ui.updateHud(this.stats.score, this.stats.kills, this.stats.streak);
@@ -237,12 +244,26 @@ class Game {
     this.entities.update(delta, gameSpeed, this.time, this.ship.x);
     this.bullets.update(delta, this.entities, (enemy) => this.onKill(enemy));
 
-    // collisions
-    const { hit, nearMiss } = checkShip(this.ship.hitbox(), this.entities.entities);
-    if (nearMiss > 0) {
-      for (let i = 0; i < nearMiss; i++) this.onNearMiss();
+    // collisions + grazing (Gameplay #2)
+    const { hit, nearMiss, grazeCount, grazeClose } = checkShip(this.ship.hitbox(), this.entities.entities);
+    for (let i = 0; i < nearMiss; i++) this.onNearMiss();
+    if (grazeCount > 0 && this.ship.invuln <= 0) this.onGraze(grazeClose, delta);
+    else this.ui.setGraze(0);
+
+    // hit handling with shield + i-frames (Gameplay #1)
+    if (hit && this.ship.invuln <= 0) {
+      if (this.shieldCharges > 0) this.absorbHit(hit);
+      else { this.die(hit); return; }
     }
-    if (hit) { this.die(hit); return; }
+
+    // shield regen after surviving a stretch without a hit
+    this.shieldRegen += delta;
+    if (this.shieldCharges < SHIELD.max && this.shieldRegen >= SHIELD.regenSec) {
+      this.shieldRegen = 0;
+      this.shieldCharges++;
+      this.ship.setShield(this.shieldCharges);
+      this.ui.setShield(this.shieldCharges, SHIELD.max);
+    }
 
     // music-reactive visuals + reward mix
     this.effects.update(delta, songTime);
@@ -280,7 +301,7 @@ class Game {
 
   onKill(enemy) {
     this.stats.kills++;
-    this.stats.streak = Math.min(8, this.stats.streak + 0.2);
+    this.stats.streak = Math.min(GRAZE.maxStreak, this.stats.streak + 0.2);
     this.stats.bestStreak = Math.max(this.stats.bestStreak, this.stats.streak);
     this.stats.score += Math.round(SCORE.kill * this.stats.streak);
     // kill reward stem (System 15.2)
@@ -290,10 +311,32 @@ class Game {
 
   onNearMiss() {
     this.stats.nearMisses++;
-    this.stats.streak = Math.min(8, this.stats.streak + 0.1);
+    this.stats.streak = Math.min(GRAZE.maxStreak, this.stats.streak + 0.1);
     this.stats.bestStreak = Math.max(this.stats.bestStreak, this.stats.streak);
     this.stats.score += Math.round(SCORE.nearMiss * this.stats.streak);
     this.ui.flashHud();
+  }
+
+  // Gameplay #2 — continuous grazing: closeness ramps the multiplier + score
+  onGraze(close, delta) {
+    this.stats.grazes++;
+    this.stats.score += close * GRAZE.pointsPerSec * delta * this.stats.streak;
+    this.stats.streak = Math.min(GRAZE.maxStreak, this.stats.streak + close * GRAZE.streakPerSec * delta);
+    this.stats.bestStreak = Math.max(this.stats.bestStreak, this.stats.streak);
+    this.ui.setGraze(close);
+  }
+
+  // Gameplay #1 — shield absorbs a hit: spend a charge, i-frames, lose combo
+  absorbHit(entity) {
+    this.shieldCharges--;
+    this.shieldRegen = 0;
+    this.ship.setShield(this.shieldCharges);
+    this.ship.flashShield();
+    this.ship.startInvuln();
+    this.ui.setShield(this.shieldCharges, SHIELD.max);
+    this.ui.flashHud();
+    this.stats.streak = 1.0; // taking a hit breaks the streak
+    if (entity.shootable) this.entities.destroy(entity); // clear it off the ship
   }
 
   // System 11 — death sequence

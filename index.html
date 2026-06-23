@@ -89,6 +89,17 @@
       position: fixed; inset: 0; background: var(--cyan); opacity: 0; pointer-events: none;
       mix-blend-mode: screen;
     }
+    #graze-glow {
+      position: fixed; inset: 0; pointer-events: none; opacity: 0;
+      box-shadow: inset 0 0 120px 24px rgba(0, 255, 255, 0.55);
+      transition: opacity 0.08s linear;
+    }
+    #hud-shield {
+      position: fixed; top: 44px; left: 50%; transform: translateX(-50%);
+      font-size: 0.8rem; letter-spacing: 0.3em; color: var(--cyan);
+      text-shadow: 0 0 12px var(--cyan); opacity: 0.85;
+    }
+    #hud-shield .empty { color: #2a3a4a; text-shadow: none; }
 
     /* ---- death text ---- */
     #death-text {
@@ -149,6 +160,8 @@
   <!-- HUD -->
   <div id="hud">
     <div id="hud-flash"></div>
+    <div id="graze-glow"></div>
+    <div id="hud-shield"></div>
     <div id="hud-score" class="hud-corner">
       <div class="hud-label">SCORE</div>
       <div class="hud-value" id="hud-score-value">0</div>

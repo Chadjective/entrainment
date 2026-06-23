@@ -88,6 +88,22 @@ export const SCORE = {
   nearMissPad: [0.5, 0.5, 0.5],
 };
 
+// Gameplay #1 — forgiveness shield. Absorbs hits before death; grants i-frames.
+export const SHIELD = {
+  max: 2,            // charges absorbed before a hit is lethal
+  iframes: 1.2,      // seconds of invulnerability after an absorb
+  regenSec: 28,      // survive this long without a hit to regen one charge
+  blinkHz: 14,       // ship blink rate during i-frames
+};
+
+// Gameplay #2 — grazing. Flying close to (but not into) hazards builds the
+// multiplier and trickles score; the closer/longer, the faster it climbs.
+export const GRAZE = {
+  pointsPerSec: 90,  // bonus points/sec at max closeness × streak
+  streakPerSec: 0.7, // multiplier growth/sec at max closeness
+  maxStreak: 8,
+};
+
 // System 15 — performance-reactive mix
 export const MIX = {
   survivalGainPerSec: 0.016,

@@ -3,7 +3,7 @@
 // (System 3), collision/near-miss (System 9), curve/section sampling.
 //   run:  node test/verify.mjs
 import { generateProceduralSong } from '../src/audio/procedural.js';
-import { intersects, checkShip } from '../src/game/collision.js';
+import { intersects, checkShip, grazeCloseness } from '../src/game/collision.js';
 import { sampleCurve, sectionAt } from '../src/data/loader.js';
 import { SHIP, SCORE } from '../src/core/config.js';
 
@@ -54,6 +54,17 @@ const ent = mkEnt(1.3, 0);
 checkShip(ship, [ent]); const second = checkShip(ship, [ent]);
 ok('near miss fires only once', second.nearMiss === 0);
 ok('intersects symmetric', intersects(ship, { x: 0, y: 1.5, z: 0, hx: 0.4, hy: 0.4, hz: 0.4 }) === true);
+
+console.log('\n# Gameplay #2 — grazing closeness');
+const pad = [0.5, 0.5, 0.5];
+const box = (x) => ({ x, y: 1.5, z: 0, hx: 0.45, hy: 0.45, hz: 0.45 });
+ok('colliding => null (not a graze)', grazeCloseness(ship, pad, box(0)) === null);
+ok('far outside pad => null', grazeCloseness(ship, pad, box(3)) === null);
+const near = grazeCloseness(ship, pad, box(1.1));
+const farG = grazeCloseness(ship, pad, box(1.5));
+ok('grazing returns 0..1', near != null && near > 0 && near <= 1, `near=${near}`);
+ok('closer graze scores higher', near > farG, `near=${near} far=${farG}`);
+ok('checkShip reports graze fields', (() => { const r = checkShip(ship, [mkEnt(1.2, 0)]); return r.grazeCount === 1 && r.grazeClose > 0 && r.hit === null; })());
 
 console.log('\n# curve + section sampling');
 ok('sampleCurve clamps low', sampleCurve(map.curves.master_rms, -5) === map.curves.master_rms[0]);

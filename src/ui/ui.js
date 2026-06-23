@@ -87,6 +87,18 @@ export class UI {
     });
   }
 
+  // Gameplay #1 — shield pips (filled = charge, dim = spent)
+  setShield(charges, max) {
+    let html = '';
+    for (let i = 0; i < max; i++) html += i < charges ? '◆' : '<span class="empty">◇</span>';
+    $('hud-shield').innerHTML = html;
+  }
+
+  // Gameplay #2 — graze vignette intensity (0..1)
+  setGraze(intensity) {
+    $('graze-glow').style.opacity = Math.min(0.8, intensity * 0.8).toFixed(3);
+  }
+
   // ---- death ----
   showDeath() {
     this.overlays.death.classList.remove('hidden', 'dim');

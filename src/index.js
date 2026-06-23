@@ -63,6 +63,7 @@ class Game {
     this.survivalApplied = -1;
     this.prevSection = null;
     this.cursor = 0;
+    this.beatCursor = 0; // gameplay beat tracker (drone fire — Gameplay #3)
     this.hudTimer = 0;
     this.deathTimer = 0;
     this.deathTextShown = false;
@@ -240,8 +241,13 @@ class Game {
       else if (e.type === 'effect') this.effects.trigger(e);
     }
 
+    // beat detection for gameplay (drone fire — Gameplay #3)
+    let onBeat = false;
+    const beats = this.map.beats;
+    while (this.beatCursor < beats.length && beats[this.beatCursor] <= songTime) { onBeat = true; this.beatCursor++; }
+
     // move world
-    this.entities.update(delta, gameSpeed, this.time, this.ship.x);
+    this.entities.update(delta, gameSpeed, this.time, this.ship.x, { onBeat, shipInvuln: this.ship.invuln });
     this.bullets.update(delta, this.entities, (enemy) => this.onKill(enemy));
 
     // collisions + grazing (Gameplay #2)
@@ -250,10 +256,16 @@ class Game {
     if (grazeCount > 0 && this.ship.invuln <= 0) this.onGraze(grazeClose, delta);
     else this.ui.setGraze(0);
 
-    // hit handling with shield + i-frames (Gameplay #1)
-    if (hit && this.ship.invuln <= 0) {
-      if (this.shieldCharges > 0) this.absorbHit(hit);
-      else { this.die(hit); return; }
+    // hit handling with shield + i-frames (Gameplay #1) — collision OR drone beam
+    if (this.ship.invuln <= 0) {
+      if (hit) {
+        if (this.shieldCharges > 0) this.absorbHit(hit);
+        else { this.die(hit); return; }
+      } else if (this.entities.laserHit) {
+        this.entities.laserHit = false;
+        if (this.shieldCharges > 0) { this.absorbHit(null); this.effects.shakeAmp = 0.25; }
+        else { this.die(null); return; }
+      }
     }
 
     // shield regen after surviving a stretch without a hit
@@ -336,7 +348,7 @@ class Game {
     this.ui.setShield(this.shieldCharges, SHIELD.max);
     this.ui.flashHud();
     this.stats.streak = 1.0; // taking a hit breaks the streak
-    if (entity.shootable) this.entities.destroy(entity); // clear it off the ship
+    if (entity && entity.shootable) this.entities.destroy(entity); // clear it off the ship
   }
 
   // System 11 — death sequence

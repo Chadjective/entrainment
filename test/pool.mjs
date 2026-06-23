@@ -57,6 +57,34 @@ ok('reset clears active', em.entities.length === 0 && em.debris.length === 0);
 em.spawn({ type: 'enemy', subtype: 'cube', x: 0 });
 ok('post-reset reuses pool (no realloc)', em.cubePool.created === builtBefore, `created=${em.cubePool.created} vs ${builtBefore}`);
 
+console.log('\n# drone beam (Gameplay #3)');
+function droneInRange() {
+  const m = new EntityManager(fakeScene);
+  m.spawn({ type: 'enemy', subtype: 'drone', x: 0, aggression: 0.5 });
+  m.entities[0].mesh.position.set(0, 1.5, -30); // within fire range
+  return m;
+}
+const d1 = droneInRange();
+d1.update(0.016, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 0 });
+ok('beat 1 -> drone charges (telegraph)', d1.entities[0].fire.state === 'charging', `state=${d1.entities[0].fire.state}`);
+d1.update(0.016, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 0 });
+ok('beat 2 -> drone fires', d1.entities[0].fire.state === 'firing');
+ok('beam hits ship in lane', d1.laserHit === true);
+
+const d2 = droneInRange();
+d2.update(0.016, SPEED.base, 0, 3, { onBeat: true, shipInvuln: 0 }); // charge
+d2.update(0.016, SPEED.base, 0, 3, { onBeat: true, shipInvuln: 0 }); // fire; ship dodged to x=3
+ok('dodged beam misses', d2.laserHit === false);
+
+const d3 = droneInRange();
+d3.update(0.016, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 1 });
+d3.update(0.016, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 1 });
+ok('beam ignored during i-frames', d3.laserHit === false);
+
+const d4 = droneInRange();
+d4.update(0.016, SPEED.base, 0, 0, { onBeat: false, shipInvuln: 0 }); // no beat -> no charge
+ok('no fire without a beat', d4.entities[0].fire.state === 'idle');
+
 console.log('\n# bullet pooling');
 const bm = new BulletManager(fakeScene);
 ok('fire spawns bullet', bm.fire(1.0, { x: 0, z: 0 }) === true && bm.bullets.length === 1);

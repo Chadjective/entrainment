@@ -11,7 +11,7 @@
 // ============================================================================
 
 import * as THREE from 'three';
-import { SPEED, COLORS } from '../core/config.js';
+import { SPEED, COLORS, LASER } from '../core/config.js';
 import { Pool } from '../core/pool.js';
 
 export class EntityManager {
@@ -21,6 +21,7 @@ export class EntityManager {
     scene.add(this.group);
     this.entities = []; // active hazards (collide)
     this.debris = [];   // mini-cubes + explosion particles (no collision)
+    this.laserHit = false; // set when a drone beam catches the player this frame
 
     this._buildSharedResources();
 
@@ -80,12 +81,17 @@ export class EntityManager {
     const wire = new THREE.LineSegments(this.edgesDrone, this.matDroneWire);
     fill.rotation.x = Math.PI / 2; // point toward +Z (the player)
     wire.rotation.x = Math.PI / 2;
-    const laser = new THREE.Line(this.geoLaser, this.matLaser);
+    // per-drone laser material so the telegraph/fire can flare independently
+    const laser = new THREE.Line(this.geoLaser, new THREE.LineBasicMaterial({ color: COLORS.droneFill, transparent: true, opacity: 0 }));
     laser.visible = false;
     g.add(fill, wire, laser);
     g.visible = false;
     this.group.add(g);
-    return { type: 'drone', mesh: g, laser, hx: 0.4, hy: 0.4, hz: 0.6, nearMissed: false, shootable: true, aggression: 0.5, fast: false, offset: 0, spin: null };
+    return {
+      type: 'drone', mesh: g, laser, hx: 0.4, hy: 0.4, hz: 0.6, nearMissed: false, shootable: true,
+      aggression: 0.5, fast: false, offset: 0, spin: null,
+      fire: { state: 'idle', t: 0, hitDone: false, cooldown: 0 },
+    };
   }
 
   // debris owns its own material (opacity fades per-instance)
@@ -134,16 +140,23 @@ export class EntityManager {
     r.mesh.position.set(ev.x, 1.5, SPEED.spawnZ);
     r.mesh.visible = true;
     r.laser.visible = false;
+    r.laser.material.opacity = 0;
     r.nearMissed = false;
     r.aggression = ev.aggression ?? 0.5;
     r.fast = ev.subtype === 'drone_fast';
     r.offset = Math.random() * Math.PI * 2;
+    r.fire.state = 'idle'; r.fire.t = 0; r.fire.hitDone = false; r.fire.cooldown = 0;
     this.entities.push(r);
   }
 
   // ---- per-frame ---------------------------------------------------------
-  update(delta, speed, time, playerX) {
+  // opts: { onBeat:boolean, shipInvuln:number } — drives beat-synced drone fire
+  update(delta, speed, time, playerX, opts = {}) {
     const step = delta * 60;
+    const onBeat = !!opts.onBeat;
+    const shipInvuln = opts.shipInvuln || 0;
+    this.laserHit = false;
+
     for (let i = this.entities.length - 1; i >= 0; i--) {
       const e = this.entities[i];
       const m = e.mesh;
@@ -156,17 +169,55 @@ export class EntityManager {
         m.rotation.x += e.spin.x * step;
         m.rotation.y += e.spin.y * step;
       } else {
-        const aggSpeed = speed + 0.15 + e.aggression * 0.2;
-        m.position.z += aggSpeed * (e.fast ? 1.5 : 1) * 60 * delta;
-        m.position.x += (playerX - m.position.x) * e.aggression * 0.5 * delta;
-        m.position.x += Math.sin(time * 3 + e.offset) * 0.03 * step;
-        e.laser.visible = m.position.z > -33; // preview within ~40u of camera
+        this._updateDrone(e, m, delta, step, speed, time, playerX, onBeat, shipInvuln);
       }
 
       if (m.position.z > SPEED.despawnZ) this._releaseEntity(i);
     }
 
     this._updateDebris(delta);
+  }
+
+  // Gameplay #3 — drone movement + beat-synced beam attack.
+  _updateDrone(e, m, delta, step, speed, time, playerX, onBeat, shipInvuln) {
+    const f = e.fire;
+    const aggSpeed = speed + 0.15 + e.aggression * 0.2;
+    m.position.z += aggSpeed * (e.fast ? 1.5 : 1) * 60 * delta;
+
+    // track + wobble only while idle (lane is frozen during charge/fire)
+    if (f.state === 'idle') {
+      m.position.x += (playerX - m.position.x) * e.aggression * 0.5 * delta;
+      m.position.x += Math.sin(time * 3 + e.offset) * 0.03 * step;
+      if (f.cooldown > 0) f.cooldown -= delta;
+    }
+
+    const inRange = m.position.z > LASER.rangeFar && m.position.z < LASER.rangeNear;
+    if (onBeat) {
+      if (f.state === 'idle' && f.cooldown <= 0 && inRange) f.state = 'charging'; // lock + telegraph
+      else if (f.state === 'charging') { f.state = 'firing'; f.t = LASER.fireWindow; f.hitDone = false; }
+    }
+
+    if (f.state === 'firing') {
+      f.t -= delta;
+      if (!f.hitDone && shipInvuln <= 0 && Math.abs(playerX - m.position.x) < LASER.laneHalf) {
+        this.laserHit = true; f.hitDone = true;
+      }
+      if (f.t <= 0) { f.state = 'idle'; f.cooldown = LASER.cooldown; }
+    }
+
+    // beam visuals: dim pulsing telegraph -> bright white fire -> off
+    if (f.state === 'charging') {
+      e.laser.visible = true;
+      e.laser.material.color.set(COLORS.drone);
+      e.laser.material.opacity = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(time * 18));
+    } else if (f.state === 'firing') {
+      e.laser.visible = true;
+      e.laser.material.color.set(0xffffff);
+      e.laser.material.opacity = 1;
+    } else {
+      e.laser.visible = false;
+      e.laser.material.opacity = 0;
+    }
   }
 
   _updateDebris(delta) {

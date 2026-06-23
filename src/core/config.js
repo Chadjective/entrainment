@@ -104,6 +104,17 @@ export const GRAZE = {
   maxStreak: 8,
 };
 
+// Gameplay #3 — drone beam attack. In range, a drone locks its lane on a beat
+// (telegraph) and fires on the NEXT beat. Freezes lateral tracking while
+// charging so the lane is honest — dodge it or shoot the drone first.
+export const LASER = {
+  rangeFar: -50,     // can begin charging from this far out
+  rangeNear: -2,     // ...until this close (still ahead of the ship)
+  fireWindow: 0.14,  // seconds the beam is live
+  cooldown: 1.0,     // seconds idle after firing before it can charge again
+  laneHalf: 0.9,     // |shipX - droneX| within this = caught in the beam
+};
+
 // System 15 — performance-reactive mix
 export const MIX = {
   survivalGainPerSec: 0.016,

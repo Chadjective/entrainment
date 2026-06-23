@@ -162,6 +162,14 @@ export const PLACEHOLDER = {
   tempo: 110,
 };
 
+// Real song (single mixdown). If present, it's decoded + analyzed in-browser
+// into the event map and played as one master track. Set url to null to force
+// the procedural placeholder.
+export const SONG = {
+  url: 'assets/audio/tyrell.mp3',
+  title: 'TYRELL CORPORATION',
+};
+
 // External links (configurable)
 export const LINKS = {
   album: 'https://neonmeridian.bandcamp.com',

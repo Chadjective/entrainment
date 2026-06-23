@@ -5,6 +5,7 @@
 import { generateProceduralSong } from '../src/audio/procedural.js';
 import { intersects, checkShip, grazeCloseness } from '../src/game/collision.js';
 import { sampleCurve, sectionAt } from '../src/data/loader.js';
+import { analyzeSong } from '../src/audio/analyze.js';
 import { SHIP, SCORE } from '../src/core/config.js';
 
 let pass = 0, fail = 0;
@@ -73,6 +74,24 @@ ok('sampleCurve interpolates', (() => { const v = sampleCurve([0, 1], 0.5 / 60);
 ok('sectionAt t=0 emergence', sectionAt(map.sections, 0).name === 'emergence');
 ok('sectionAt end = departure', sectionAt(map.sections, 119).name === 'departure');
 ok('section speed increases mid-song', sectionAt(map.sections, 90).speed > 1.0);
+
+console.log('\n# real-song analysis (in-browser pipeline)');
+function fakeBuffer({ sr, durSec, bpm }) {
+  const length = Math.floor(sr * durSec);
+  const data = new Float32Array(length);
+  const period = Math.round((sr * 60) / bpm);     // samples per beat
+  for (let i = 0; i < length; i += period) {
+    for (let j = 0; j < 220 && i + j < length; j++) data[i + j] = Math.exp(-j / 45) * (j % 2 ? 1 : -1);
+  }
+  return { sampleRate: sr, duration: durSec, length, numberOfChannels: 1, getChannelData: () => data };
+}
+const songMap = analyzeSong(fakeBuffer({ sr: 44100, durSec: 12, bpm: 120 }), { title: 'TEST' });
+ok('single-track flag set', songMap.singleTrack === true);
+ok('curves length = duration*60', Object.values(songMap.curves).every((c) => c.length === 720), JSON.stringify(Object.fromEntries(Object.entries(songMap.curves).map(([k, v]) => [k, v.length]))));
+ok('tempo detected ≈ 120', Math.abs(songMap.tempo - 120) <= 8, `tempo=${songMap.tempo}`);
+ok('beats ascending & in-range', songMap.beats.length > 4 && songMap.beats.every((b, i, a) => (i === 0 || a[i - 1] < b) && b < 12));
+ok('events generated & sorted', songMap.events.length > 0 && songMap.events.every((e, i, a) => i === 0 || a[i - 1].time <= e.time));
+ok('7 sections + RMS in range', songMap.sections.length === 7 && songMap.curves.master_rms.every((v) => v >= 0 && v <= 1));
 
 console.log(`\n# scoring sanity`);
 ok('near-miss award = 50', SCORE.nearMiss === 50);

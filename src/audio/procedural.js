@@ -7,16 +7,8 @@
 // ============================================================================
 
 import { PLACEHOLDER, STEM_NAMES } from '../core/config.js';
-
-// --- deterministic RNG so the placeholder song is the same every load -------
-function mulberry32(seed) {
-  return function () {
-    seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+import { FPS, rmsCurve, centroidCurve, onsetFromRms, mulberry32 } from './dsp.js';
+import { defaultSections, generateEvents } from './eventgen.js';
 
 const midiToFreq = (n) => 440 * Math.pow(2, (n - 69) / 12);
 const saw = (freq, t) => 2 * (freq * t - Math.floor(0.5 + freq * t));
@@ -157,125 +149,33 @@ export function generateProceduralSong(audioContext) {
   return { buffers, map };
 }
 
-// Compute RMS / centroid / onset curves + game events from the synthesized PCM.
-function buildEventMap({ data, sr, duration, beats, tempo, barDur, beatDur }) {
-  const fps = 60;
-  const hop = sr / fps;
-  const frameLen = 2048;
-  const frames = Math.ceil(duration * fps);
+// Compute RMS / centroid / onset curves + game events from the synthesized PCM,
+// reusing the shared DSP + event generator (so procedural and the real-song
+// analyzer stay in lockstep).
+function buildEventMap({ data, sr, duration, beats, tempo }) {
+  const hop = sr / FPS;
+  const frames = Math.ceil(duration * FPS);
   const [piano, synth, guitar, perc] = data;
-
-  const rmsCurve = (arr) => {
-    const out = new Float32Array(frames);
-    let peak = 1e-6;
-    for (let f = 0; f < frames; f++) {
-      const s = Math.floor(f * hop);
-      let sum = 0; let count = 0;
-      for (let i = s; i < s + frameLen && i < arr.length; i++) { sum += arr[i] * arr[i]; count++; }
-      const v = count ? Math.sqrt(sum / count) : 0;
-      out[f] = v; if (v > peak) peak = v;
-    }
-    for (let f = 0; f < frames; f++) out[f] = out[f] / peak;
-    return out;
-  };
-
-  // brightness proxy in 0..1: energy of first-difference vs signal energy
-  const centroidCurve = (arr) => {
-    const out = new Float32Array(frames);
-    for (let f = 0; f < frames; f++) {
-      const s = Math.floor(f * hop);
-      let sig = 0; let dif = 0;
-      for (let i = s; i < s + frameLen && i < arr.length; i++) {
-        sig += arr[i] * arr[i];
-        const d = arr[i] - (arr[i - 1] || 0);
-        dif += d * d;
-      }
-      const r = sig > 1e-9 ? Math.sqrt(dif / sig) : 0;
-      out[f] = Math.max(0, Math.min(1, r * 0.6));
-    }
-    return out;
-  };
-
-  const onsetFromRms = (rms) => {
-    const out = new Float32Array(frames);
-    let peak = 1e-6;
-    for (let f = 1; f < frames; f++) { const d = Math.max(0, rms[f] - rms[f - 1]); out[f] = d; if (d > peak) peak = d; }
-    for (let f = 0; f < frames; f++) out[f] = out[f] / peak;
-    return out;
-  };
 
   const master = new Float32Array(piano.length);
   for (let i = 0; i < master.length; i++) master[i] = piano[i] + synth[i] + guitar[i] + perc[i];
 
-  const piano_rms = rmsCurve(piano);
-  const synth_rms = rmsCurve(synth);
-  const master_rms = rmsCurve(master);
+  const piano_rms = rmsCurve(piano, hop, frames);
+  const synth_rms = rmsCurve(synth, hop, frames);
+  const master_rms = rmsCurve(master, hop, frames);
 
   const curves = {
     piano_rms: Array.from(piano_rms),
-    piano_centroid: Array.from(centroidCurve(piano)),
-    piano_onset: Array.from(onsetFromRms(piano_rms)),
+    piano_centroid: Array.from(centroidCurve(piano, hop, frames)),
+    piano_onset: Array.from(onsetFromRms(piano_rms, frames)),
     synth_rms: Array.from(synth_rms),
-    synth_centroid: Array.from(centroidCurve(synth)),
+    synth_centroid: Array.from(centroidCurve(synth, hop, frames)),
     master_rms: Array.from(master_rms),
-    master_centroid: Array.from(centroidCurve(master)),
+    master_centroid: Array.from(centroidCurve(master, hop, frames)),
   };
 
-  // --- sections ---
-  const sectionDefs = [
-    ['emergence', 1.0], ['awakening', 1.15], ['engagement', 1.25],
-    ['breath', 1.0], ['escalation', 1.35], ['apex', 1.5], ['departure', 1.1],
-  ];
-  const sections = sectionDefs.map((s, i) => ({
-    time: +(i * (duration / sectionDefs.length)).toFixed(2),
-    name: s[0],
-    speed: s[1],
-  }));
-
-  // --- game events along the beat grid ---
-  const events = [];
-  const rng = mulberry32(7);
-  const introBeats = 8; // grace period before hazards
-  for (let bi = introBeats; bi < beats.length; bi++) {
-    const time = beats[bi];
-    // density rises with section speed
-    const sect = sections.filter((s) => s.time <= time).pop() || sections[0];
-    const intensity = (sect.speed - 1.0); // 0 .. 0.5
-    const everyN = intensity > 0.3 ? 2 : intensity > 0.1 ? 3 : 4;
-    if (bi % everyN !== 0) continue;
-
-    // weave x position across the track
-    const x = +(Math.sin(bi * 0.7) * 6).toFixed(2);
-    const roll = rng();
-    if (roll < 0.5) {
-      // pillar (dodge only)
-      const size = +(0.8 + rng() * 1.4).toFixed(2);
-      const height = +(1.5 + rng() * 2.0).toFixed(2);
-      events.push({ time, type: 'obstacle', x, size, height, persistence: 8 });
-    } else if (roll < 0.78) {
-      events.push({ time, type: 'enemy', subtype: 'cube', x, aggression: 0.3 });
-    } else {
-      const fast = intensity > 0.3 && rng() < 0.4;
-      events.push({
-        time, type: 'enemy', subtype: fast ? 'drone_fast' : 'drone',
-        x, aggression: +(0.4 + intensity).toFixed(2),
-      });
-    }
-
-    // accent effect on the downbeat of intense bars
-    if (bi % 16 === 0 && intensity > 0.1) {
-      events.push({ time, type: 'effect', effect: 'screen_shake', intensity: +(0.3 + intensity).toFixed(2) });
-    }
-  }
-
-  // section-boundary effects
-  sections.forEach((s, i) => {
-    if (i === 0) return;
-    events.push({ time: s.time, type: 'effect', effect: 'bloom', intensity: 0.6 });
-    events.push({ time: s.time, type: 'section', section: s.name });
-  });
-
-  events.sort((a, b) => a.time - b.time);
+  const sections = defaultSections(duration);
+  const events = generateEvents(beats, sections, mulberry32(7));
 
   return {
     song: 'tyrell_corporation_placeholder',

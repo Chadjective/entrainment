@@ -25,6 +25,7 @@ export class Grid {
     this._buildVertical();
     this._buildWalls();
     this._buildStars();
+    this._buildPyramid();
     this._buildSun();
   }
 
@@ -83,9 +84,42 @@ export class Grid {
     this.group.add(new THREE.Points(geo, mat));
   }
 
+  // Big wireframe pyramid monument on the horizon (synthwave backdrop).
+  // fog:false so it reads clearly behind the dynamic fog + the sun.
+  _buildPyramid() {
+    const H = 34, R = 24;
+    const group = new THREE.Group();
+    group.position.set(0, 0, -130); // base on the floor, far back
+    group.rotation.y = Math.PI / 4; // flat face toward the camera
+
+    const edgeMat = new THREE.LineBasicMaterial({ color: COLORS.magenta, transparent: true, opacity: 0.32, fog: false });
+    const bandMat = new THREE.LineBasicMaterial({ color: COLORS.magenta, transparent: true, opacity: 0.14, fog: false });
+
+    // 4 slant edges apex→base + the base square
+    const apex = new THREE.Vector3(0, H, 0);
+    const corner = (r) => [
+      new THREE.Vector3(r, 0, 0), new THREE.Vector3(0, 0, r),
+      new THREE.Vector3(-r, 0, 0), new THREE.Vector3(0, 0, -r),
+    ];
+    const base = corner(R);
+    base.forEach((c) => group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([apex, c]), edgeMat)));
+    group.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(base), edgeMat));
+
+    // faint horizontal cross-section bands for the classic banded look
+    for (let k = 1; k <= 4; k++) {
+      const t = k / 5;
+      const ring = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(corner(R * (1 - t))), bandMat);
+      ring.position.y = H * t;
+      group.add(ring);
+    }
+
+    this.pyramid = group;
+    this.group.add(group);
+  }
+
   _buildSun() {
     const wire = new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(8, 1));
-    this.sun = new THREE.LineSegments(wire, new THREE.LineBasicMaterial({ color: COLORS.cyan, transparent: true, opacity: 0.3 }));
+    this.sun = new THREE.LineSegments(wire, new THREE.LineBasicMaterial({ color: COLORS.cyan, transparent: true, opacity: 0.35, fog: false }));
     this.sun.position.set(0, 8, -100);
     this.group.add(this.sun);
   }

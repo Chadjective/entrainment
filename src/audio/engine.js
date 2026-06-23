@@ -5,8 +5,9 @@
 // falls back to the procedural placeholder song.
 // ============================================================================
 
-import { AUDIO, STEM_NAMES, CORE_STEMS, STEMS, MIX } from '../core/config.js';
+import { AUDIO, STEM_NAMES, CORE_STEMS, STEMS, MIX, SONG } from '../core/config.js';
 import { generateProceduralSong } from './procedural.js';
+import { analyzeSong } from './analyze.js';
 
 export class AudioEngine {
   constructor() {
@@ -24,6 +25,7 @@ export class AudioEngine {
     this.playing = false;
     this._endFired = false;
     this._pausedAtSongTime = 0;
+    this.singleTrack = false; // one mixdown instead of 6 stems
   }
 
   // ---- loading -----------------------------------------------------------
@@ -31,22 +33,22 @@ export class AudioEngine {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     this.ctx = new Ctx();
 
-    // try real assets, else procedural
+    // priority: prebuilt stems+map → single real song → procedural placeholder
     let loaded = null;
-    try {
-      loaded = await this._loadRealAssets(onProgress);
-    } catch (e) {
-      loaded = null;
-    }
+    try { loaded = await this._loadStems(onProgress); } catch (e) { loaded = null; }
+    if (!loaded) { try { loaded = await this._loadSong(onProgress); } catch (e) { loaded = null; } }
+
     if (!loaded) {
       onProgress?.(0.15);
       const gen = generateProceduralSong(this.ctx);
       this.buffers = gen.buffers;
       this.map = gen.map;
+      this.singleTrack = false;
       onProgress?.(1);
     } else {
       this.buffers = loaded.buffers;
       this.map = loaded.map;
+      this.singleTrack = !!loaded.singleTrack;
     }
 
     this.duration = this.map.duration;
@@ -54,7 +56,22 @@ export class AudioEngine {
     return this.map;
   }
 
-  async _loadRealAssets(onProgress) {
+  // single mixdown (e.g. tyrell.mp3): decode + analyze in-browser → event map
+  async _loadSong(onProgress) {
+    if (!SONG || !SONG.url) return null;
+    const r = await fetch(SONG.url, { cache: 'force-cache' });
+    if (!r.ok) return null;
+    onProgress?.(0.25);
+    const arr = await r.arrayBuffer();
+    onProgress?.(0.5);
+    const buffer = await this.ctx.decodeAudioData(arr);
+    onProgress?.(0.7);
+    const map = analyzeSong(buffer, { title: SONG.title, url: SONG.url });
+    onProgress?.(1);
+    return { buffers: [buffer], map, singleTrack: true };
+  }
+
+  async _loadStems(onProgress) {
     const res = await fetch('assets/data/event-map.json', { cache: 'no-cache' });
     if (!res.ok) return null;
     const map = await res.json();
@@ -93,10 +110,11 @@ export class AudioEngine {
     this.reverbSend.connect(this.convolver);
     this.convolver.connect(this.masterGain);
 
-    // one persistent gain per stem (dry → master, wet → reverb send)
-    this.gains = STEM_NAMES.map((_, i) => {
+    // one persistent gain per buffer (dry → master, wet → reverb send).
+    // single track: 1 gain at full. 6 stems: core full, reward layers silent.
+    this.gains = this.buffers.map((_, i) => {
       const g = ctx.createGain();
-      g.gain.value = i < 4 ? 1.0 : 0.0; // core full, reward silent
+      g.gain.value = (this.singleTrack || i < 4) ? 1.0 : 0.0;
       g.connect(this.masterGain);
       g.connect(this.reverbSend);
       return g;
@@ -171,17 +189,28 @@ export class AudioEngine {
     g.gain.linearRampToValueAtTime(value, now + ramp);
   }
 
-  // System 15 — reward mix
+  // System 15 — reward mix (no-op for a single mixdown: no isolated stems)
   setSurvivalGain(value) {
+    if (this.singleTrack) return;
     this.setStemGain(STEMS.reward1, Math.max(0, Math.min(1, value)), MIX.rewardRampUp);
   }
   setKillGain(value) {
+    if (this.singleTrack) return;
     this.setStemGain(STEMS.reward2, Math.max(0, Math.min(1, value)), MIX.rewardRampUp);
   }
 
   // System 2/11 — death audio transition
   triggerDeath() {
     const now = this.ctx.currentTime;
+    this.reverbSend.gain.cancelScheduledValues(now);
+    this.reverbSend.gain.setValueAtTime(this.reverbSend.gain.value, now);
+    this.reverbSend.gain.linearRampToValueAtTime(AUDIO.deathReverbWet, now + AUDIO.deathCoreFade);
+
+    if (this.singleTrack) {
+      // can't isolate piano — duck the whole mix and let reverb swell
+      this.setStemGain(0, 0.5, AUDIO.deathCoreFade);
+      return;
+    }
     // reward stems fade out over 2s
     [STEMS.reward1, STEMS.reward2].forEach((i) => this.setStemGain(i, 0, MIX.rewardRampDown));
     // core stems (except piano) reduce to 0.3 over 5s
@@ -191,10 +220,6 @@ export class AudioEngine {
     });
     // piano stays at 1.0
     this.setStemGain(STEMS.piano, 1.0, 0.1);
-    // reverb wet 0 → 0.6 over 5s
-    this.reverbSend.gain.cancelScheduledValues(now);
-    this.reverbSend.gain.setValueAtTime(this.reverbSend.gain.value, now);
-    this.reverbSend.gain.linearRampToValueAtTime(AUDIO.deathReverbWet, now + AUDIO.deathCoreFade);
   }
 
   // ---- pause / resume ----------------------------------------------------
@@ -222,7 +247,7 @@ export class AudioEngine {
     const now = this.ctx.currentTime;
     this.gains.forEach((g, i) => {
       g.gain.cancelScheduledValues(now);
-      g.gain.setValueAtTime(i < 4 ? 1.0 : 0.0, now);
+      g.gain.setValueAtTime((this.singleTrack || i < 4) ? 1.0 : 0.0, now);
     });
     this.reverbSend.gain.cancelScheduledValues(now);
     this.reverbSend.gain.setValueAtTime(0, now);

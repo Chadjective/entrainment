@@ -170,10 +170,11 @@ export const SONG = {
   title: 'TYRELL CORPORATION',
 };
 
-// External links (configurable)
+// External links (configurable). The reward-screen CTA + share text.
 export const LINKS = {
-  album: 'https://neonmeridian.bandcamp.com',
-  shareUrl: 'https://entrainment.game',
+  album: 'https://www.instagram.com/fjordnacht/', // CTA target ("for now")
+  albumLabel: 'FOLLOW FJORDNACHT',                // button text (matches target)
+  shareUrl: 'https://chadjective.github.io/entrainment/', // live game page
   songTitle: 'TYRELL CORPORATION',
 };
 

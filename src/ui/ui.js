@@ -27,7 +27,9 @@ export class UI {
     $('resume-btn').onclick = h.onResume;
     $('quit-btn').onclick = h.onQuit;
     $('playagain-btn').onclick = h.onPlayAgain;
-    $('download-btn').onclick = () => window.open(LINKS.album, '_blank');
+    const dl = $('download-btn');
+    dl.textContent = LINKS.albumLabel;
+    dl.onclick = () => window.open(LINKS.album, '_blank', 'noopener,noreferrer');
     $('share-btn').onclick = h.onShare;
     this.pauseBtn.onclick = h.onPause;
   }

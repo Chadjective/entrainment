@@ -36,7 +36,12 @@
       z-index: 10;
     }
     .overlay.dim { background: rgba(8, 8, 24, 0.88); }
-    .overlay.hidden { opacity: 0; pointer-events: none !important; }
+    /* hidden overlays must be fully non-interactive — visibility:hidden removes
+       the subtree from hit-testing so invisible buttons can't intercept clicks
+       (the .overlay button { pointer-events:auto } rule would otherwise keep
+       them clickable on top of the visible screen). */
+    .overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none !important; }
+    .overlay.hidden button { pointer-events: none !important; }
     .overlay .panel { display: flex; flex-direction: column; align-items: center; gap: 1.1rem; }
     .overlay button {
       pointer-events: auto;

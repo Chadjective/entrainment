@@ -9,3 +9,4 @@ tools/analysis.json
 # raw per-section chunks from the design workflows (assembled into the *.md docs)
 docs/_backlog/
 docs/_fjord/
+docs/_features/

@@ -20,6 +20,8 @@ export class Ship {
 
     this.x = 0;
     this.targetX = 0;
+    this.y = SHIP.startPos[1];       // current vertical position
+    this.targetY = SHIP.startPos[1]; // commanded vertical position
     this.glows = [];
     this.flash = 0;        // beat-accent glow boost, decays over 150ms
     this.invuln = 0;       // remaining i-frame seconds
@@ -91,16 +93,23 @@ export class Ship {
     this.group.add(this.shieldMesh);
   }
 
-  // steerDir: -1 left, +1 right, 0 none
-  update(delta, steerDir, time) {
+  // steerDir: -1 left/+1 right; vertDir: -1 down/+1 up
+  update(delta, steerDir, vertDir, time) {
     this.targetX += steerDir * SHIP.steerSpeed * delta;
     this.targetX = Math.max(-SHIP.clampX, Math.min(SHIP.clampX, this.targetX));
     this.x += (this.targetX - this.x) * SHIP.lerp * delta;
     this.x = Math.max(-SHIP.clampX, Math.min(SHIP.clampX, this.x));
 
+    this.targetY += (vertDir || 0) * SHIP.vertSpeed * delta;
+    this.targetY = Math.max(SHIP.minY, Math.min(SHIP.maxY, this.targetY));
+    this.y += (this.targetY - this.y) * SHIP.lerp * delta;
+    this.y = Math.max(SHIP.minY, Math.min(SHIP.maxY, this.y));
+
     this.group.position.x = this.x;
-    this.group.position.y = SHIP.startPos[1] + Math.sin(time * SHIP.bobFreq) * SHIP.bobAmp;
+    this.group.position.y = this.y + Math.sin(time * SHIP.bobFreq) * SHIP.bobAmp;
     this.group.rotation.z = -(this.targetX - this.x) * SHIP.bankFactor;
+    // pitch: nose up while climbing, down while diving
+    this.group.rotation.x = Math.max(-0.5, Math.min(0.5, (this.targetY - this.y) * SHIP.pitchFactor));
 
     // i-frame blink (hull only)
     if (this.invuln > 0) {
@@ -149,8 +158,10 @@ export class Ship {
   reset() {
     this.x = 0;
     this.targetX = 0;
+    this.y = SHIP.startPos[1];
+    this.targetY = SHIP.startPos[1];
     this.group.position.set(...SHIP.startPos);
-    this.group.rotation.z = 0;
+    this.group.rotation.set(0, 0, 0);
     this.group.visible = true;
     this.body.visible = true;
     this.invuln = 0;

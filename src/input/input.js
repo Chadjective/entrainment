@@ -43,6 +43,14 @@ export class Input {
     return s;
   }
 
+  // vertical: +1 = up, -1 = down (keyboard; touch climb handled via swipe later)
+  getVertical() {
+    let v = 0;
+    if (this.keys['ArrowUp'] || this.keys['w'] || this.keys['W']) v += 1;
+    if (this.keys['ArrowDown'] || this.keys['s'] || this.keys['S']) v -= 1;
+    return v;
+  }
+
   isFiring() {
     return !!(this.keys[' '] || this.touchDir === 'center');
   }

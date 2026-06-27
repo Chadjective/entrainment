@@ -56,12 +56,14 @@ export const LIGHT = {
 export const WATER = {
   reflect: true,         // Three.js Reflector; auto-disabled on small viewports
   minWidthForReflect: 820,
-  color: 0x122a40,       // deep cold water tint
-  fallbackColor: 0x0a1622,
+  // Reflector tints (multiplies) the reflection — a dark tint hides it. This is
+  // bright enough to read as a real mirror while keeping a cold water cast.
+  color: 0x88a6c4,
+  fallbackColor: 0x14283c,
   size: [240, 420],      // plane W x D
-  y: -0.06,              // just below the grid lines so they sit on the surface
+  y: -0.04,              // just below the grid lines so they sit on the surface
   textureCap: 1024,      // reflection render-target size cap (perf)
-  gridOverlayOpacity: 0.2, // vertical grid lines kept faint over the water
+  gridOverlayOpacity: 0.14, // vertical grid lines kept faint over the water
 };
 
 // System 5 — grid floor
@@ -84,6 +86,10 @@ export const GRID = {
 export const SHIP = {
   startPos: [0, 1.5, 0],
   steerSpeed: 12, // units / second of target movement
+  vertSpeed: 8,   // vertical (up/down) movement speed
+  minY: 0.6,      // floor clearance
+  maxY: 4.5,      // ceiling — high enough to clear tall pillars
+  pitchFactor: 0.45, // nose tilt while climbing/diving
   lerp: 6,
   clampX: 7,
   bankFactor: 1.8,

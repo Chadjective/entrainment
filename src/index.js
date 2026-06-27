@@ -18,7 +18,7 @@ import { AudioEngine } from './audio/engine.js';
 import { UI, loadHighScore, saveHighScore } from './ui/ui.js';
 import { Input } from './input/input.js';
 import { sectionAt } from './data/loader.js';
-import { SPEED, SCORE, MIX, SCENE, BLOOM, SHIELD, GRAZE } from './core/config.js';
+import { SPEED, SCORE, MIX, SCENE, BLOOM, SHIELD, GRAZE, SHIP } from './core/config.js';
 
 const STATE = { LOADING: 'LOADING', MENU: 'MENU', COUNTDOWN: 'COUNTDOWN', PLAYING: 'PLAYING', DEAD: 'DEAD', REWARD: 'REWARD' };
 
@@ -199,7 +199,7 @@ class Game {
 
   updateCountdown(delta) {
     this.grid.update(delta, SPEED.base * 0.5);
-    this.ship.update(delta, 0, this.time);
+    this.ship.update(delta, 0, 0, this.time);
     this.camera.position.x += (0 - this.camera.position.x) * 3 * delta;
     this.camera.lookAt(0, 1.0, -20);
 
@@ -230,7 +230,7 @@ class Game {
     const gameSpeed = SPEED.base * sect.speed;
 
     // input + ship (firing throws light — Phase A "play by the light you make")
-    this.ship.update(delta, this.input.getSteer(), this.time);
+    this.ship.update(delta, this.input.getSteer(), this.input.getVertical(), this.time);
     if (this.input.isFiring() && this.bullets.fire(this.time, this.ship.position)) this.effects.fireLevel = 1;
 
     // spawn from event map (advance cursor)
@@ -281,10 +281,13 @@ class Game {
     this.effects.update(delta, songTime);
     this.updateRewardMix(delta);
 
-    // camera follow (System 4)
+    // camera follow (System 4) — laterally and gently vertically
+    const shipY = this.ship.position.y;
     this.camera.position.x += (this.ship.x * 0.3 - this.camera.position.x) * 3 * delta;
-    this.camera.lookAt(this.ship.x * 0.5, 1.0, -20);
-    this.lights.point.position.set(this.ship.x, 3, 1);
+    const camTargetY = SCENE.camPos[1] + (shipY - SHIP.startPos[1]) * 0.35;
+    this.camera.position.y += (camTargetY - this.camera.position.y) * 3 * delta;
+    this.camera.lookAt(this.ship.x * 0.5, shipY * 0.5 + 0.5, -20);
+    this.lights.point.position.set(this.ship.x, shipY + 1, 1); // light pool tracks ship height
     this.effects.applyShake(this.camera);
 
     // grid

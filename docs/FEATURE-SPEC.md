@@ -1186,4 +1186,17 @@ Pure config on the def system if Phase 0 is right — new enemies are data, not 
 - Mobile graceful-degradation check (R11) per phase: game stays playable keyboard-less.
 - Hold the R1 invariant: never let `speedAmount` reach the spawn / song / beat cursors.
 
+## Decisions (locked in — 2026-06-27)
+
+Resolving the open questions so the build is unambiguous:
+
+- **Roll identity (OQ1):** SKILL version — deflect i-frames AND a rotated hitbox in the *recover* window (`rollIframes < rollActive`), with `SHIP.half` asymmetry widened so the transpose meaningfully changes clearance. Expose a `rollIframes:0` hardcore toggle.
+- **Roster scope (OQ6):** 4–5 glyph FIRST WAVE — treble-clef `spiral`, fermata `hover`+scroll-damp, rest `dormantUntilBeat`, staccato `blinkDash` swarm, trill `weave` — to validate the def system + perf + feel before the full 22.
+- **Gates under fire (OQ5):** THREAD UNDER FIRE — `eventgen` deliberately co-spawns drones/obstacles around rings; collecting the chain is a real risk/reward combat test (no reserved clear corridor).
+- **Accel/brake keys (OQ2):** `Shift` = accelerate, `Z` = brake (no Ctrl). `preventDefault` both.
+- **Brake cost (OQ3):** Foregone graze points only (no explicit score/streak bleed) — add bleed later only if playtests show turtling.
+- **Gate boost taper (OQ4):** Deferred to feel — start with rising-speed-as-reward (boost additive into the shared `[0.7, 1.3]` clamp); add a per-pass taper only if it pins at max unpleasantly.
+
+Build order unchanged: **Phase 0 entity system (keystone) → Roll → Accel/Brake → Gates → Roster first wave.** Build starts on the user's go-ahead after spec review.
+
 

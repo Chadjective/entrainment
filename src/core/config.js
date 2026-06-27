@@ -26,14 +26,42 @@ export const SCENE = {
   camNear: 0.1,
   camFar: 200,
   camPos: [0, 3.5, 7],
-  ambientColor: 0x222244,
-  ambientIntensity: 0.6,
-  dirColor: 0x4444ff,
-  dirIntensity: 0.4,
-  dirPos: [0, 20, -10],
-  pointColor: 0x00ffff,
-  pointIntensity: 1.2,
-  pointDistance: 20,
+  // Fjordnacht Phase A — moonlit baseline: cold, dim ambient + a silver "moon"
+  // directional key high and behind. The player's light does most of the work.
+  ambientColor: 0x18223a,
+  ambientIntensity: 0.18,
+  dirColor: 0xbfd0ff,     // cold moon silver
+  dirIntensity: 0.55,
+  dirPos: [0, 40, -30],   // high and behind the player
+  pointColor: 0x66e0ff,   // warm-cyan player light
+  pointIntensity: 0.4,    // base; Effects drives it up with player activity
+  pointDistance: 26,
+};
+
+// Fjordnacht Phase A — "Play By The Light You Make". Ambient is a dim moonlit
+// floor; the player's beat-glow, firing, grazing, and shield are the dominant
+// dynamic light source (the point light pooling on the water).
+export const LIGHT = {
+  ambientBase: 0.16,   // moonlit ambient floor
+  ambientMusic: 0.14,  // + piano_rms (a soft breath on top)
+  playerBase: 0.45,    // point-light floor
+  flashGain: 1.3,      // + ship beat/shot flash
+  grazeGain: 1.2,      // + graze closeness
+  fireGain: 0.9,       // + recent fire
+  fireDecay: 6,        // per-second decay of the fire light
+  maxPlayer: 2.4,      // clamp
+};
+
+// Fjordnacht Phase A — reflective fjord floor (the "black mirror water").
+export const WATER = {
+  reflect: true,         // Three.js Reflector; auto-disabled on small viewports
+  minWidthForReflect: 820,
+  color: 0x122a40,       // deep cold water tint
+  fallbackColor: 0x0a1622,
+  size: [240, 420],      // plane W x D
+  y: -0.06,              // just below the grid lines so they sit on the surface
+  textureCap: 1024,      // reflection render-target size cap (perf)
+  gridOverlayOpacity: 0.2, // vertical grid lines kept faint over the water
 };
 
 // System 5 — grid floor
@@ -135,7 +163,7 @@ export const AUDIO = {
 
 // Post-processing — UnrealBloom (neon glow). Strength is modulated by music.
 export const BLOOM = {
-  strength: 0.85,     // base bloom
+  strength: 0.5,      // base bloom (lowered for the dark moonlit baseline)
   radius: 0.5,
   threshold: 0.2,     // only bright neon (> this luminance) blooms; dark bg doesn't
   energyBoost: 0.7,   // added at full master_rms (the scene breathes with energy)

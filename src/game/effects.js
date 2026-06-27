@@ -7,7 +7,7 @@
 
 import * as THREE from 'three';
 import { sampleCurve } from '../data/loader.js';
-import { COLORS, BLOOM } from '../core/config.js';
+import { COLORS, BLOOM, LIGHT } from '../core/config.js';
 
 export class Effects {
   constructor({ scene, grid, ship, lights, post }) {
@@ -26,6 +26,9 @@ export class Effects {
     this.timeSinceBeat = 1;
     this.shakeAmp = 0;
     this.bloom = 0;
+    // Phase A — "play by the light you make": the orchestrator feeds these.
+    this.grazeLevel = 0; // current graze closeness (0..1)
+    this.fireLevel = 0;  // decays after each shot
   }
 
   setMap(map) {
@@ -81,11 +84,18 @@ export class Effects {
     // and `bloom` effect events (section boundaries / accents) punch it up.
     if (this.post) this.post.setStrength(BLOOM.strength + masterRms * BLOOM.energyBoost + kick * BLOOM.kick);
 
-    // --- 10D lighting (piano rms) ---
+    // --- 10D lighting — Phase A "play by the light you make" ---
+    // Ambient is a dim moonlit floor; the player's beat-glow, firing, and
+    // grazing are the dominant dynamic light (the point light on the water).
     const piano = sampleCurve(c.piano_rms, songTime);
-    this.lights.point.intensity = 0.3 + piano * 1.5;
+    this.lights.ambient.intensity = LIGHT.ambientBase + piano * LIGHT.ambientMusic;
+    this.fireLevel = Math.max(0, this.fireLevel - delta * LIGHT.fireDecay);
+    const player = LIGHT.playerBase
+      + this.ship.flash * LIGHT.flashGain
+      + this.grazeLevel * LIGHT.grazeGain
+      + this.fireLevel * LIGHT.fireGain;
+    this.lights.point.intensity = Math.min(LIGHT.maxPlayer, player);
     this.lights.point.color.copy(temp);
-    this.lights.ambient.intensity = 0.3 + piano * 0.5;
 
     // --- 10E fog density (synth rms) ---
     const synth = sampleCurve(c.synth_rms, songTime);
@@ -108,6 +118,8 @@ export class Effects {
     this.timeSinceBeat = 1;
     this.shakeAmp = 0;
     this.bloom = 0;
+    this.grazeLevel = 0;
+    this.fireLevel = 0;
     this.scene.fog.near = 40;
     this.scene.fog.far = 90;
   }

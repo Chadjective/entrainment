@@ -1,10 +1,12 @@
 // ============================================================================
-// System 5 — Grid floor: scrolling horizontal lines, fixed vertical lines,
-// translucent track walls, starfield, and a rotating wireframe sun.
+// System 5 — Grid floor: a reflective "black mirror water" surface (Fjordnacht
+// Phase A) with scrolling horizontal lines, fixed vertical lines, translucent
+// track walls, starfield, a wireframe sun, and a pyramid monument.
 // ============================================================================
 
 import * as THREE from 'three';
-import { GRID, SPEED, COLORS, SCENE } from '../core/config.js';
+import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
+import { GRID, SPEED, COLORS, SCENE, WATER } from '../core/config.js';
 
 export class Grid {
   constructor(scene) {
@@ -15,18 +17,48 @@ export class Grid {
 
     this.tempo = 110;
 
-    // shared materials so effects can recolor / dim the whole grid at once
+    // shared materials so effects can recolor / dim the whole grid at once.
+    // Grid lines are faint over the water — the water is the dominant surface.
     this.hMaterial = new THREE.LineBasicMaterial({ color: COLORS.gridDim, transparent: true, opacity: 0.5 });
-    this.vMaterial = new THREE.LineBasicMaterial({ color: COLORS.gridDim, transparent: true, opacity: 0.35 });
+    this.vMaterial = new THREE.LineBasicMaterial({ color: COLORS.gridDim, transparent: true, opacity: WATER.gridOverlayOpacity });
     this.wallMaterial = new THREE.MeshBasicMaterial({ color: COLORS.wall, transparent: true, opacity: 0.15 });
     this.wallEdgeMaterial = new THREE.LineBasicMaterial({ color: COLORS.wall, transparent: true, opacity: 0.6 });
 
+    this._buildWater();
     this._buildHorizontal();
     this._buildVertical();
     this._buildWalls();
     this._buildStars();
     this._buildPyramid();
     this._buildSun();
+  }
+
+  // Fjordnacht Phase A — the reflective fjord surface. A Three.js Reflector
+  // mirrors the moon, sun, pyramid, stars, hazards, and ship; the scrolling
+  // grid lines ride on top (grid-on-water). Auto-falls back to a flat dark
+  // plane on small viewports to spare the extra render pass.
+  _buildWater() {
+    const geo = new THREE.PlaneGeometry(WATER.size[0], WATER.size[1]);
+    const useReflector = WATER.reflect && window.innerWidth >= WATER.minWidthForReflect;
+    this.waterReflective = false;
+    if (useReflector) {
+      try {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        this.water = new Reflector(geo, {
+          clipBias: 0.003,
+          color: WATER.color,
+          textureWidth: Math.min(WATER.textureCap, Math.floor(window.innerWidth * dpr)),
+          textureHeight: Math.min(WATER.textureCap, Math.floor(window.innerHeight * dpr)),
+        });
+        this.waterReflective = true;
+      } catch (e) { this.water = null; } // fall through to the flat plane below
+    }
+    if (!this.water) {
+      this.water = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: WATER.fallbackColor }));
+    }
+    this.water.rotation.x = -Math.PI / 2;       // lie flat, normal up
+    this.water.position.set(0, WATER.y, -50);   // just below the grid lines
+    this.group.add(this.water);
   }
 
   _buildHorizontal() {

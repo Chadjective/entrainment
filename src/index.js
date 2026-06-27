@@ -229,9 +229,9 @@ class Game {
     this.prevSection = sect.name;
     const gameSpeed = SPEED.base * sect.speed;
 
-    // input + ship
+    // input + ship (firing throws light — Phase A "play by the light you make")
     this.ship.update(delta, this.input.getSteer(), this.time);
-    if (this.input.isFiring()) this.bullets.fire(this.time, this.ship.position);
+    if (this.input.isFiring() && this.bullets.fire(this.time, this.ship.position)) this.effects.fireLevel = 1;
 
     // spawn from event map (advance cursor)
     const ev = this.map.events;
@@ -253,8 +253,8 @@ class Game {
     // collisions + grazing (Gameplay #2)
     const { hit, nearMiss, grazeCount, grazeClose } = checkShip(this.ship.hitbox(), this.entities.entities);
     for (let i = 0; i < nearMiss; i++) this.onNearMiss();
-    if (grazeCount > 0 && this.ship.invuln <= 0) this.onGraze(grazeClose, delta);
-    else this.ui.setGraze(0);
+    if (grazeCount > 0 && this.ship.invuln <= 0) { this.onGraze(grazeClose, delta); this.effects.grazeLevel = grazeClose; }
+    else { this.ui.setGraze(0); this.effects.grazeLevel = 0; }
 
     // hit handling with shield + i-frames (Gameplay #1) — collision OR drone beam
     if (this.ship.invuln <= 0) {

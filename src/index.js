@@ -147,6 +147,8 @@ class Game {
     this.ship.setVisible(true);
     this.camera.position.set(...SCENE.camPos);
     this.lights.point.position.set(0, 3, 1);
+    this.lights.point.color.setHex(SCENE.pointColor);
+    this.lights.point.intensity = SCENE.pointIntensity;
     await this.audio.reset();
     this._resetStats();
     this.startCountdown();
@@ -287,7 +289,7 @@ class Game {
     const camTargetY = SCENE.camPos[1] + (shipY - SHIP.startPos[1]) * 0.35;
     this.camera.position.y += (camTargetY - this.camera.position.y) * 3 * delta;
     this.camera.lookAt(this.ship.x * 0.5, shipY * 0.5 + 0.5, -20);
-    this.lights.point.position.set(this.ship.x, shipY + 1, 1); // light pool tracks ship height
+    this.lights.point.position.set(this.ship.x, Math.min(shipY + 1, 3.0), 1); // follow height, capped so flying up doesn't lift the light off ground hazards
     this.effects.applyShake(this.camera);
 
     // grid

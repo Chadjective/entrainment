@@ -51,6 +51,14 @@ export class Grid {
           textureHeight: Math.min(WATER.textureCap, Math.floor(window.innerHeight * dpr)),
         });
         this.waterReflective = true;
+        const fitTarget = () => {
+          const px = Math.min(window.devicePixelRatio || 1, 2);
+          this.water.getRenderTarget().setSize(
+            Math.min(WATER.textureCap, Math.floor(window.innerWidth * px)),
+            Math.min(WATER.textureCap, Math.floor(window.innerHeight * px)),
+          );
+        };
+        window.addEventListener('resize', fitTarget);
       } catch (e) { this.water = null; } // fall through to the flat plane below
     }
     if (!this.water) {

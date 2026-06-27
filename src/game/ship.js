@@ -147,8 +147,9 @@ export class Ship {
   get position() { return this.group.position; }
 
   hitbox() {
+    // logical position (no hover-bob) so collision doesn't jitter ±bob/frame
     return {
-      x: this.group.position.x, y: this.group.position.y, z: 0,
+      x: this.x, y: this.y, z: 0,
       hx: SHIP.half[0], hy: SHIP.half[1], hz: SHIP.half[2],
     };
   }

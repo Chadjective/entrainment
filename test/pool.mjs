@@ -6,7 +6,8 @@ import * as THREE from 'three';
 import { EntityManager } from '../src/game/entities.js';
 import { BulletManager } from '../src/game/bullets.js';
 import { BEHAVIOURS } from '../src/game/behaviours.js';
-import { SPEED } from '../src/core/config.js';
+import { Ship } from '../src/game/ship.js';
+import { SPEED, SHIP, ROLL } from '../src/core/config.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -103,6 +104,25 @@ const y0 = blob.mesh.position.y;
 em2.update(0.1, SPEED.base, 0, 0);
 ok('new def: pooled + moves via library behaviour', blob.defKey === 'testdrifter' && !!em2.pools.testdrifter && blob.mesh.position.y < y0 && blob.mesh.position.z > SPEED.spawnZ);
 ok('behaviour library present', ['approach', 'weave', 'track', 'spiral', 'seek', 'barrier', 'hover', 'tumble', 'spin', 'driftDown'].every((b) => typeof BEHAVIOURS[b] === 'function'));
+
+console.log('\n# ship barrel roll (Phase 1)');
+const ship = new Ship(fakeScene);
+ship.reset();
+ship.update(1 / 60, 0, 0, 1, 0); // press E -> roll right
+ok('roll starts + deflect i-frames', ship.rollState === 'active' && ship.invuln > 0);
+ok('not rollReady during roll', ship.rollReady === false);
+let maxRoll = 0;
+for (let i = 0; i < 10; i++) { ship.update(1 / 60, 0, 0, 0, i / 60); maxRoll = Math.max(maxRoll, Math.abs(ship.roll)); }
+ok('reaches ~90° sideways', maxRoll > 1.3, `maxRoll=${maxRoll.toFixed(2)}`);
+ship.roll = Math.PI / 2; // rolled: hitbox transposes (pure swap, no scale)
+const hbR = ship.hitbox();
+ok('rolled hitbox transposes', hbR.hx === SHIP.half[1] && hbR.hy === SHIP.half[0] && hbR.hz === SHIP.half[2]);
+ship.roll = 0;
+const hbL = ship.hitbox();
+ok('level hitbox normal', hbL.hx === SHIP.half[0] && hbL.hy === SHIP.half[1]);
+for (let i = 0; i < 60; i++) ship.update(1 / 60, 0, 0, 0, i / 60); // finish + cooldown
+ok('roll completes -> ready again', ship.rollState === 'idle' && ship.roll === 0 && ship.rollReady === true);
+ok('iframes < active (recover window exists)', ROLL.iframes < ROLL.active);
 
 console.log('\n# bullet pooling');
 const bm = new BulletManager(fakeScene);

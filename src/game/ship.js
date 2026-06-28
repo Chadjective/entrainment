@@ -7,7 +7,7 @@
 // ============================================================================
 
 import * as THREE from 'three';
-import { SHIP, SHIELD, COLORS } from '../core/config.js';
+import { SHIP, SHIELD, ROLL, COLORS } from '../core/config.js';
 
 export class Ship {
   constructor(scene) {
@@ -27,6 +27,12 @@ export class Ship {
     this.invuln = 0;       // remaining i-frame seconds
     this.shieldCharges = 0;
     this.shieldFlash = 0;  // brief shield-bubble flare on absorb
+    // barrel roll (Gameplay — Phase 1)
+    this.roll = 0;            // current roll angle (rad, -π/2..π/2)
+    this.rollState = 'idle';  // 'idle' | 'active' | 'cooldown'
+    this.rollT = 0;
+    this.rollCdT = 0;
+    this.rollDir = 0;
 
     this._build();
   }
@@ -93,8 +99,9 @@ export class Ship {
     this.group.add(this.shieldMesh);
   }
 
-  // steerDir: -1 left/+1 right; vertDir: -1 down/+1 up
-  update(delta, steerDir, vertDir, time) {
+  // steerDir: -1 left/+1 right; vertDir: -1 down/+1 up; rollDir: -1/+1 roll
+  update(delta, steerDir, vertDir, rollDir, time) {
+    this._updateRoll(delta, rollDir);
     this.targetX += steerDir * SHIP.steerSpeed * delta;
     this.targetX = Math.max(-SHIP.clampX, Math.min(SHIP.clampX, this.targetX));
     this.x += (this.targetX - this.x) * SHIP.lerp * delta;
@@ -107,7 +114,11 @@ export class Ship {
 
     this.group.position.x = this.x;
     this.group.position.y = this.y + Math.sin(time * SHIP.bobFreq) * SHIP.bobAmp;
-    this.group.rotation.z = -(this.targetX - this.x) * SHIP.bankFactor;
+    // bank and barrel-roll share the Z axis — compose them (R3); damp the
+    // steer-bank during a roll so they don't stack into an ugly over-rotation.
+    const bank = -(this.targetX - this.x) * SHIP.bankFactor;
+    const bankDamp = Math.abs(this.roll) > ROLL.transposeAngle ? 0.4 : 1;
+    this.group.rotation.z = bank * bankDamp + this.roll;
     // pitch: nose up while climbing, down while diving
     this.group.rotation.x = Math.max(-0.5, Math.min(0.5, (this.targetY - this.y) * SHIP.pitchFactor));
 
@@ -134,6 +145,31 @@ export class Ship {
     this.shieldMesh.visible = this.shieldMesh.material.opacity > 0.001;
   }
 
+  // barrel roll state machine: level -> sideways -> level over ROLL.active,
+  // with deflect i-frames on entry and a transposed-hitbox recover window.
+  _updateRoll(delta, rollDir) {
+    if (this.rollState === 'idle') {
+      if (rollDir !== 0) {
+        this.rollState = 'active'; this.rollT = 0; this.rollDir = rollDir;
+        this.startInvuln(ROLL.iframes); // deflect window
+      } else {
+        this.roll = 0;
+      }
+    }
+    if (this.rollState === 'active') {
+      this.rollT += delta;
+      const phase = Math.min(1, this.rollT / ROLL.active);
+      this.roll = Math.sin(phase * Math.PI) * (Math.PI / 2) * this.rollDir; // 0 -> ±90° -> 0
+      if (this.rollT >= ROLL.active) { this.rollState = 'cooldown'; this.rollCdT = 0; this.roll = 0; }
+    } else if (this.rollState === 'cooldown') {
+      this.roll = 0;
+      this.rollCdT += delta;
+      if (this.rollCdT >= ROLL.cooldown) this.rollState = 'idle';
+    }
+  }
+
+  get rollReady() { return this.rollState === 'idle'; }
+
   // beat accent — flash engine glow (System 10A)
   pulseGlow() {
     this.flash = 1;
@@ -147,10 +183,15 @@ export class Ship {
   get position() { return this.group.position; }
 
   hitbox() {
-    // logical position (no hover-bob) so collision doesn't jitter ±bob/frame
+    // logical position (no hover-bob) so collision doesn't jitter ±bob/frame.
+    // While rolled past the threshold, transpose x/y half-extents (a pure
+    // transpose, never a scale) so a sideways ship threads tight lateral gaps.
+    const rolled = Math.abs(this.roll) > ROLL.transposeAngle;
     return {
       x: this.x, y: this.y, z: 0,
-      hx: SHIP.half[0], hy: SHIP.half[1], hz: SHIP.half[2],
+      hx: rolled ? SHIP.half[1] : SHIP.half[0],
+      hy: rolled ? SHIP.half[0] : SHIP.half[1],
+      hz: SHIP.half[2],
     };
   }
 
@@ -167,5 +208,8 @@ export class Ship {
     this.body.visible = true;
     this.invuln = 0;
     this.shieldFlash = 0;
+    this.roll = 0;
+    this.rollState = 'idle';
+    this.rollT = 0; this.rollCdT = 0; this.rollDir = 0;
   }
 }

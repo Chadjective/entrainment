@@ -61,8 +61,8 @@ const pad = [0.5, 0.5, 0.5];
 const box = (x) => ({ x, y: 1.5, z: 0, hx: 0.45, hy: 0.45, hz: 0.45 });
 ok('colliding => null (not a graze)', grazeCloseness(ship, pad, box(0)) === null);
 ok('far outside pad => null', grazeCloseness(ship, pad, box(3)) === null);
-const near = grazeCloseness(ship, pad, box(1.1));
-const farG = grazeCloseness(ship, pad, box(1.5));
+const near = grazeCloseness(ship, pad, box(1.25)); // just outside the core box (ship hx 0.7 + ent 0.45 = 1.15)
+const farG = grazeCloseness(ship, pad, box(1.55));
 ok('grazing returns 0..1', near != null && near > 0 && near <= 1, `near=${near}`);
 ok('closer graze scores higher', near > farG, `near=${near} far=${farG}`);
 ok('checkShip reports graze fields', (() => { const r = checkShip(ship, [mkEnt(1.2, 0)]); return r.grazeCount === 1 && r.grazeClose > 0 && r.hit === null; })());

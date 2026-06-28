@@ -51,6 +51,14 @@ export class Input {
     return v;
   }
 
+  // barrel roll: -1 = roll left (Q), +1 = roll right (E)
+  getRoll() {
+    let r = 0;
+    if (this.keys['q'] || this.keys['Q']) r -= 1;
+    if (this.keys['e'] || this.keys['E']) r += 1;
+    return r;
+  }
+
   isFiring() {
     return !!(this.keys[' '] || this.touchDir === 'center');
   }

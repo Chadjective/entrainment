@@ -201,7 +201,7 @@ class Game {
 
   updateCountdown(delta) {
     this.grid.update(delta, SPEED.base * 0.5);
-    this.ship.update(delta, 0, 0, this.time);
+    this.ship.update(delta, 0, 0, 0, this.time);
     this.camera.position.x += (0 - this.camera.position.x) * 3 * delta;
     this.camera.lookAt(0, 1.0, -20);
 
@@ -232,7 +232,7 @@ class Game {
     const gameSpeed = SPEED.base * sect.speed;
 
     // input + ship (firing throws light — Phase A "play by the light you make")
-    this.ship.update(delta, this.input.getSteer(), this.input.getVertical(), this.time);
+    this.ship.update(delta, this.input.getSteer(), this.input.getVertical(), this.input.getRoll(), this.time);
     if (this.input.isFiring() && this.bullets.fire(this.time, this.ship.position)) this.effects.fireLevel = 1;
 
     // spawn from event map (advance cursor)

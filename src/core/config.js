@@ -95,7 +95,20 @@ export const SHIP = {
   bankFactor: 1.8,
   bobFreq: 2,
   bobAmp: 0.03,
-  half: [0.6, 0.5, 0.75], // collision half-extents
+  // collision half-extents — wider than tall so the roll's transpose (hx<->hy)
+  // meaningfully narrows the profile to thread tight lateral gaps.
+  half: [0.7, 0.45, 0.75],
+};
+
+// Gameplay — barrel roll (Q/E). Skill version: a deflect i-frame window on
+// entry, then a recover window where the transposed hitbox (not invuln) decides
+// the hit. iframes < active guarantees that recover window exists. Set
+// iframes:0 for a hardcore, deflect-less "pure threading" roll.
+export const ROLL = {
+  active: 0.34,    // total roll duration (level -> sideways -> level)
+  iframes: 0.2,    // deflect invulnerability from roll start
+  cooldown: 0.22,  // before another roll can start
+  transposeAngle: Math.PI / 4, // |roll| past this -> swap the hitbox profile
 };
 
 // System 7 — entities. Base game speed; section multipliers scale it.

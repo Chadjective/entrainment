@@ -141,6 +141,20 @@ ok('flew over the ring (Y) -> miss', gm.checkGates(0, 4.0).missed === 1 && gate2
 gm.entities.forEach((e) => { e.mesh.position.z = 0; }); // overlap the ship
 ok('gates never lethal (checkShip skips them)', checkShip({ x: 0, y: 1.5, z: 0, hx: 0.7, hy: 0.45, hz: 0.75 }, gm.entities).hit === null);
 
+console.log('\n# notation roster (Phase 4)');
+const rm = new EntityManager(fakeScene);
+const glyphs = ['treble_clef', 'fermata', 'rest', 'staccato', 'trill'];
+for (const def of glyphs) rm.spawn({ type: 'entity', def, x: 0, y: 1.5 });
+ok('all 5 glyphs spawn with own pools', rm.entities.length === 5 && glyphs.every((d) => !!rm.pools[d] && rm.entities.some((e) => e.defKey === d)));
+ok('treble_clef is 3 hp', rm.entities.find((e) => e.defKey === 'treble_clef').hp === 3);
+const rest = rm.entities.find((e) => e.defKey === 'rest');
+rest.mesh.position.z = -30; // in range so a beat can arm it
+rm.update(0.1, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 0, playerY: 1.5 });
+ok('roster updates ok + rest arms on a beat in range', rm.entities.length === 5 && rest.armed === true);
+const treble = rm.entities.find((e) => e.defKey === 'treble_clef');
+ok('treble spirals in the upper lanes', treble.mesh.position.y > 2.0);
+rm.reset();
+
 console.log('\n# bullet pooling');
 const bm = new BulletManager(fakeScene);
 ok('fire spawns bullet', bm.fire(1.0, { x: 0, z: 0 }) === true && bm.bullets.length === 1);

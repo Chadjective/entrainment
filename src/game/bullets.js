@@ -49,8 +49,8 @@ export class BulletManager {
         if (!e.shootable) continue; // pillars pass through
         const ebox = { x: e.mesh.position.x, y: e.mesh.position.y, z: e.mesh.position.z, hx: e.hx, hy: e.hy, hz: e.hz };
         if (intersects(box, ebox)) {
-          entityManager.destroy(e);
-          onKill(e);
+          e.hp = (e.hp ?? 1) - 1; // most enemies are 1-hit; tougher defs set hp
+          if (e.hp <= 0) { entityManager.destroy(e); onKill(e); }
           consumed = true;
           break;
         }

@@ -42,11 +42,15 @@ export function generateEvents(beats, sections, rng, opts = {}) {
         height: +(1.5 + rng() * 2.0).toFixed(2),
         persistence: 8,
       });
-    } else if (roll < 0.78) {
+    } else if (roll < 0.66) {
       events.push({ time, type: 'enemy', subtype: 'cube', x, aggression: 0.3 });
-    } else {
+    } else if (roll < 0.82) {
       const fast = dense > 0.3 && rng() < 0.4;
       events.push({ time, type: 'enemy', subtype: fast ? 'drone_fast' : 'drone', x, aggression: +(0.4 + intensity).toFixed(2) });
+    } else {
+      // notation roster (Phase 4 first wave) — entity defs on the data-driven system
+      const glyphs = ['treble_clef', 'fermata', 'rest', 'staccato', 'trill'];
+      events.push({ time, type: 'entity', def: glyphs[Math.floor(rng() * glyphs.length)], x, y: +(1.0 + rng() * 2.0).toFixed(2) });
     }
 
     if (bi % 16 === 0 && dense > 0.1) {

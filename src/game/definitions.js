@@ -118,6 +118,72 @@ export const DEFINITIONS = {
       r.fire.state = 'idle'; r.fire.t = 0; r.fire.hitDone = false; r.fire.cooldown = 0;
     },
   },
+
+  // ---- Notation roster (Phase 4 first wave) — each is config + a behaviour
+  // name; motion reads from both the symbol's meaning and its form. ----
+
+  // Treble clef — form is a spiral, sets the HIGH register: spirals in, patrols
+  // the upper lanes. Tanky (3 hp).
+  treble_clef: {
+    move: 'spiral', shootable: true, hp: 3, death: 'explode',
+    spiralSpeed: 3, spiralRadius: 1.3,
+    build(M) {
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(M.geoTreble, M.matGlyph));
+      g.visible = false; M.group.add(g);
+      return { type: 'treble_clef', mesh: g, hx: 0.5, hy: 0.85, hz: 0.45, nearMissed: false, shootable: true, hp: 3, baseX: 0, baseY: 3, angle: 0 };
+    },
+    init(r, ev) { r.mesh.position.set(ev.x, 3.0, SPEED.spawnZ); r.baseX = ev.x; r.baseY = 3.0; r.angle = 0; r.hp = 3; r.nearMissed = false; },
+  },
+
+  // Fermata — means "hold", looks like an eye/dome: hovers and watches.
+  fermata: {
+    move: 'hover', shootable: true, hp: 4, death: 'explode', hoverScroll: 0.25,
+    build(M) {
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(M.geoFermataDome, M.matGlyph));
+      const eye = new THREE.Mesh(M.geoFermataEye, M.matGlyph); eye.position.y = -0.02; g.add(eye);
+      g.visible = false; M.group.add(g);
+      return { type: 'fermata', mesh: g, hx: 0.5, hy: 0.45, hz: 0.5, nearMissed: false, shootable: true, hp: 4, baseY: 2.0, offset: 0 };
+    },
+    init(r, ev) { const y = ev.y ?? 2.0; r.mesh.position.set(ev.x, y, SPEED.spawnZ); r.baseY = y; r.offset = Math.random() * Math.PI * 2; r.hp = 4; r.nearMissed = false; },
+  },
+
+  // Rest — means silence: dormant until its beat, then strikes.
+  rest: {
+    move: 'dormantUntilBeat', shootable: true, hp: 1, death: 'mini',
+    build(M) {
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(M.geoRest, M.matGlyph));
+      g.visible = false; M.group.add(g);
+      return { type: 'rest', mesh: g, hx: 0.28, hy: 0.45, hz: 0.2, nearMissed: false, shootable: true, hp: 1, armed: false, offset: 0 };
+    },
+    init(r, ev) { r.mesh.position.set(ev.x, ev.y ?? 1.5, SPEED.spawnZ); r.mesh.rotation.set(0, 0, 0); r.armed = false; r.offset = Math.random() * Math.PI * 2; r.hp = 1; r.nearMissed = false; },
+  },
+
+  // Staccato — short/detached: stuttering dash, twitchy chip threat.
+  staccato: {
+    move: 'blinkDash', shootable: true, hp: 1, death: 'mini',
+    build(M) {
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(M.geoStaccato, M.matGlyph));
+      g.visible = false; M.group.add(g);
+      return { type: 'staccato', mesh: g, hx: 0.26, hy: 0.26, hz: 0.26, nearMissed: false, shootable: true, hp: 1, blinkT: 0 };
+    },
+    init(r, ev) { r.mesh.position.set(ev.x, ev.y ?? 1.5, SPEED.spawnZ); r.mesh.rotation.set(0, 0, 0); r.blinkT = 0; r.hp = 1; r.nearMissed = false; },
+  },
+
+  // Trill — rapid oscillation: a tight, fast weave.
+  trill: {
+    move: 'weave', shootable: true, hp: 2, death: 'mini', weaveFreq: 4, weaveAmp: 0.05,
+    build(M) {
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(M.geoTrill, M.matGlyph));
+      g.visible = false; M.group.add(g);
+      return { type: 'trill', mesh: g, hx: 0.45, hy: 0.22, hz: 0.2, nearMissed: false, shootable: true, hp: 2, offset: 0, spin: null };
+    },
+    init(r, ev) { r.mesh.position.set(ev.x, ev.y ?? 1.5, SPEED.spawnZ); r.offset = Math.random() * Math.PI * 2; r.hp = 2; r.nearMissed = false; },
+  },
 };
 
 // Map legacy event-map events (obstacle/enemy + subtype) to a definition key.

@@ -19,14 +19,38 @@ export const BEHAVIOURS = {
     e.mesh.position.z += (ctx.speed + zBonus(e)) * 60 * dt;
   },
 
-  // scroll + gentle x weave + tumble spin (data cubes)
+  // scroll + x weave + tumble spin. Params weaveFreq/weaveAmp default to the
+  // cube's values (so the cube is unchanged); the trill sets a tighter, faster
+  // weave.
   weave(e, dt, ctx) {
     e.mesh.position.z += (ctx.speed + zBonus(e)) * 60 * dt;
-    e.mesh.position.x += Math.sin(ctx.time + e.offset) * 0.02 * ctx.step;
+    e.mesh.position.x += Math.sin(ctx.time * (e.def.weaveFreq ?? 1) + e.offset) * (e.def.weaveAmp ?? 0.02) * ctx.step;
     if (e.spin) {
       e.mesh.rotation.x += e.spin.x * ctx.step;
       e.mesh.rotation.y += e.spin.y * ctx.step;
     }
+  },
+
+  // the REST: silence — creeps almost stationary until a beat arms it in range,
+  // then lunges forward fast (ambush that punishes the gap).
+  dormantUntilBeat(e, dt, ctx) {
+    if (!e.armed) {
+      e.mesh.position.z += ctx.speed * 60 * dt * 0.15; // barely moves
+      e.mesh.rotation.z = Math.sin(ctx.time * 2 + e.offset) * 0.1;
+      if (ctx.onBeat && e.mesh.position.z > -45) e.armed = true;
+    } else {
+      e.mesh.position.z += (ctx.speed + 0.45) * 60 * dt; // strike
+    }
+  },
+
+  // STACCATO: short/detached — stuttering dash (move-pause-move) that hops
+  // toward the player while dashing.
+  blinkDash(e, dt, ctx) {
+    e.blinkT = (e.blinkT ?? 0) + dt;
+    const dashing = (e.blinkT % 0.4) / 0.4 < 0.5;
+    e.mesh.position.z += (ctx.speed + (dashing ? 0.5 : 0)) * 60 * dt;
+    if (dashing) e.mesh.position.x += (ctx.playerX - e.mesh.position.x) * 0.05;
+    e.mesh.rotation.x += (dashing ? 0.18 : 0.02) * ctx.step;
   },
 
   // fast scroll + lateral player-tracking + wobble; tracking freezes while the

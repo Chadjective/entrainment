@@ -51,6 +51,24 @@ export class EntityManager {
     ]);
     this.geoGateRing = new THREE.TorusGeometry(GATE.ringRadius, GATE.tube, 8, 10); // octagonal ring
 
+    // notation roster glyphs (built ONCE, shared across instances — R9)
+    const clefPts = [];
+    for (let i = 0; i <= 24; i++) { const t = i / 24, a = t * Math.PI * 4, r = 0.5 * (1 - t * 0.55); clefPts.push(new THREE.Vector3(Math.cos(a) * r, t * 1.6 - 0.8, Math.sin(a) * 0.05)); }
+    this.geoTreble = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(clefPts), 40, 0.07, 6, false);
+    this.geoFermataDome = new THREE.SphereGeometry(0.5, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.5);
+    this.geoFermataEye = new THREE.SphereGeometry(0.14, 8, 8);
+    const restShape = new THREE.Shape();
+    restShape.moveTo(-0.18, 0.42); restShape.lineTo(0.16, 0.16); restShape.lineTo(-0.1, 0.05);
+    restShape.lineTo(0.16, -0.28); restShape.lineTo(0.04, -0.42); restShape.lineTo(-0.06, -0.42);
+    restShape.lineTo(0.06, -0.22); restShape.lineTo(-0.2, 0.0); restShape.lineTo(0.06, 0.12); restShape.lineTo(-0.22, 0.42);
+    this.geoRest = new THREE.ExtrudeGeometry(restShape, { depth: 0.08, bevelEnabled: false });
+    this.geoStaccato = new THREE.OctahedronGeometry(0.22, 0);
+    const trillPts = [];
+    for (let i = 0; i <= 16; i++) { const t = i / 16; trillPts.push(new THREE.Vector3(t * 0.8 - 0.4, Math.sin(t * Math.PI * 4) * 0.12, 0)); }
+    this.geoTrill = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(trillPts), 24, 0.05, 5, false);
+    // warm amber "ink/parchment" family so the notation enemies read as a set
+    this.matGlyph = new THREE.MeshPhongMaterial({ color: 0xffcc55, emissive: 0xff8a00, emissiveIntensity: 0.5, transparent: true, opacity: 0.92 });
+
     // shared entity materials (constant color/opacity — safe to share)
     this.matPillar = new THREE.MeshPhongMaterial({ color: COLORS.pillar, emissive: 0xff1133, emissiveIntensity: 0.4, transparent: true, opacity: 0.85 });
     this.matPillarWire = new THREE.LineBasicMaterial({ color: COLORS.pillar, transparent: true, opacity: 0.9 });

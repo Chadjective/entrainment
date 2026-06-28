@@ -155,6 +155,14 @@ const treble = rm.entities.find((e) => e.defKey === 'treble_clef');
 ok('treble spirals in the upper lanes', treble.mesh.position.y > 2.0);
 rm.reset();
 
+console.log('\n# accel lunge (Phase 2)');
+ship.reset();
+ship.targetZ = -2;
+for (let i = 0; i < 30; i++) ship.update(1 / 60, 0, 0, 0, i / 60);
+ok('accel lunges craft forward (−Z); hitbox follows', ship.z < -1.2 && Math.abs(ship.hitbox().z - ship.z) < 1e-6);
+ship.reset();
+ok('reset zeroes the lunge', ship.z === 0 && ship.targetZ === 0);
+
 console.log('\n# bullet pooling');
 const bm = new BulletManager(fakeScene);
 ok('fire spawns bullet', bm.fire(1.0, { x: 0, z: 0 }) === true && bm.bullets.length === 1);

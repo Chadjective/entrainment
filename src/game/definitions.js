@@ -130,8 +130,9 @@ export const DEFINITIONS = {
     build(M) {
       const g = new THREE.Group();
       g.add(new THREE.Mesh(M.geoTreble, M.matGlyph));
+      g.scale.setScalar(1.35);
       g.visible = false; M.group.add(g);
-      return { type: 'treble_clef', mesh: g, hx: 0.5, hy: 0.85, hz: 0.45, nearMissed: false, shootable: true, hp: 3, baseX: 0, baseY: 3, angle: 0 };
+      return { type: 'treble_clef', mesh: g, hx: 0.6, hy: 1.1, hz: 0.5, nearMissed: false, shootable: true, hp: 3, baseX: 0, baseY: 3, angle: 0 };
     },
     init(r, ev) { r.mesh.position.set(ev.x, 3.0, SPEED.spawnZ); r.baseX = ev.x; r.baseY = 3.0; r.angle = 0; r.hp = 3; r.nearMissed = false; },
   },
@@ -143,8 +144,9 @@ export const DEFINITIONS = {
       const g = new THREE.Group();
       g.add(new THREE.Mesh(M.geoFermataDome, M.matGlyph));
       const eye = new THREE.Mesh(M.geoFermataEye, M.matGlyph); eye.position.y = -0.02; g.add(eye);
+      g.scale.setScalar(1.5);
       g.visible = false; M.group.add(g);
-      return { type: 'fermata', mesh: g, hx: 0.5, hy: 0.45, hz: 0.5, nearMissed: false, shootable: true, hp: 4, baseY: 2.0, offset: 0 };
+      return { type: 'fermata', mesh: g, hx: 0.75, hy: 0.6, hz: 0.75, nearMissed: false, shootable: true, hp: 4, baseY: 2.0, offset: 0 };
     },
     init(r, ev) { const y = ev.y ?? 2.0; r.mesh.position.set(ev.x, y, SPEED.spawnZ); r.baseY = y; r.offset = Math.random() * Math.PI * 2; r.hp = 4; r.nearMissed = false; },
   },
@@ -155,8 +157,9 @@ export const DEFINITIONS = {
     build(M) {
       const g = new THREE.Group();
       g.add(new THREE.Mesh(M.geoRest, M.matGlyph));
+      g.scale.setScalar(1.7);
       g.visible = false; M.group.add(g);
-      return { type: 'rest', mesh: g, hx: 0.28, hy: 0.45, hz: 0.2, nearMissed: false, shootable: true, hp: 1, armed: false, offset: 0 };
+      return { type: 'rest', mesh: g, hx: 0.45, hy: 0.72, hz: 0.28, nearMissed: false, shootable: true, hp: 1, armed: false, offset: 0 };
     },
     init(r, ev) { r.mesh.position.set(ev.x, ev.y ?? 1.5, SPEED.spawnZ); r.mesh.rotation.set(0, 0, 0); r.armed = false; r.offset = Math.random() * Math.PI * 2; r.hp = 1; r.nearMissed = false; },
   },
@@ -167,8 +170,9 @@ export const DEFINITIONS = {
     build(M) {
       const g = new THREE.Group();
       g.add(new THREE.Mesh(M.geoStaccato, M.matGlyph));
+      g.scale.setScalar(1.7);
       g.visible = false; M.group.add(g);
-      return { type: 'staccato', mesh: g, hx: 0.26, hy: 0.26, hz: 0.26, nearMissed: false, shootable: true, hp: 1, blinkT: 0 };
+      return { type: 'staccato', mesh: g, hx: 0.42, hy: 0.42, hz: 0.42, nearMissed: false, shootable: true, hp: 1, blinkT: 0 };
     },
     init(r, ev) { r.mesh.position.set(ev.x, ev.y ?? 1.5, SPEED.spawnZ); r.mesh.rotation.set(0, 0, 0); r.blinkT = 0; r.hp = 1; r.nearMissed = false; },
   },
@@ -179,8 +183,9 @@ export const DEFINITIONS = {
     build(M) {
       const g = new THREE.Group();
       g.add(new THREE.Mesh(M.geoTrill, M.matGlyph));
+      g.scale.setScalar(1.6);
       g.visible = false; M.group.add(g);
-      return { type: 'trill', mesh: g, hx: 0.45, hy: 0.22, hz: 0.2, nearMissed: false, shootable: true, hp: 2, offset: 0, spin: null };
+      return { type: 'trill', mesh: g, hx: 0.7, hy: 0.32, hz: 0.3, nearMissed: false, shootable: true, hp: 2, offset: 0, spin: null };
     },
     init(r, ev) { r.mesh.position.set(ev.x, ev.y ?? 1.5, SPEED.spawnZ); r.offset = Math.random() * Math.PI * 2; r.hp = 2; r.nearMissed = false; },
   },

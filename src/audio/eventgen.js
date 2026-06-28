@@ -35,16 +35,16 @@ export function generateEvents(beats, sections, rng, opts = {}) {
 
     const x = +(Math.sin(bi * 0.7) * 6).toFixed(2);
     const roll = rng();
-    if (roll < 0.5) {
+    if (roll < 0.44) {
       events.push({
         time, type: 'obstacle', x,
         size: +(0.8 + rng() * 1.4).toFixed(2),
         height: +(1.5 + rng() * 2.0).toFixed(2),
         persistence: 8,
       });
-    } else if (roll < 0.66) {
+    } else if (roll < 0.60) {
       events.push({ time, type: 'enemy', subtype: 'cube', x, aggression: 0.3 });
-    } else if (roll < 0.82) {
+    } else if (roll < 0.74) {
       const fast = dense > 0.3 && rng() < 0.4;
       events.push({ time, type: 'enemy', subtype: fast ? 'drone_fast' : 'drone', x, aggression: +(0.4 + intensity).toFixed(2) });
     } else {

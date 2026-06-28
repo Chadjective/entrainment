@@ -7,7 +7,7 @@
 // ============================================================================
 
 import * as THREE from 'three';
-import { SHIP, SHIELD, ROLL, COLORS } from '../core/config.js';
+import { SHIP, SHIELD, ROLL, ACCEL, COLORS } from '../core/config.js';
 
 export class Ship {
   constructor(scene) {
@@ -22,6 +22,8 @@ export class Ship {
     this.targetX = 0;
     this.y = SHIP.startPos[1];       // current vertical position
     this.targetY = SHIP.startPos[1]; // commanded vertical position
+    this.z = 0;                      // forward/back lunge from accel/brake
+    this.targetZ = 0;
     this.glows = [];
     this.flash = 0;        // beat-accent glow boost, decays over 150ms
     this.invuln = 0;       // remaining i-frame seconds
@@ -112,8 +114,10 @@ export class Ship {
     this.y += (this.targetY - this.y) * SHIP.lerp * delta;
     this.y = Math.max(SHIP.minY, Math.min(SHIP.maxY, this.y));
 
+    this.z += (this.targetZ - this.z) * ACCEL.lungeLerp * delta;
     this.group.position.x = this.x;
     this.group.position.y = this.y + Math.sin(time * SHIP.bobFreq) * SHIP.bobAmp;
+    this.group.position.z = this.z;
     // bank and barrel-roll share the Z axis — compose them (R3); damp the
     // steer-bank during a roll so they don't stack into an ugly over-rotation.
     const bank = -(this.targetX - this.x) * SHIP.bankFactor;
@@ -188,7 +192,7 @@ export class Ship {
     // transpose, never a scale) so a sideways ship threads tight lateral gaps.
     const rolled = Math.abs(this.roll) > ROLL.transposeAngle;
     return {
-      x: this.x, y: this.y, z: 0,
+      x: this.x, y: this.y, z: this.z,
       hx: rolled ? SHIP.half[1] : SHIP.half[0],
       hy: rolled ? SHIP.half[0] : SHIP.half[1],
       hz: SHIP.half[2],
@@ -202,6 +206,8 @@ export class Ship {
     this.targetX = 0;
     this.y = SHIP.startPos[1];
     this.targetY = SHIP.startPos[1];
+    this.z = 0;
+    this.targetZ = 0;
     this.group.position.set(...SHIP.startPos);
     this.group.rotation.set(0, 0, 0);
     this.group.visible = true;

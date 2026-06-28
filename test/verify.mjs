@@ -66,6 +66,11 @@ const farG = grazeCloseness(ship, pad, box(1.55));
 ok('grazing returns 0..1', near != null && near > 0 && near <= 1, `near=${near}`);
 ok('closer graze scores higher', near > farG, `near=${near} far=${farG}`);
 ok('checkShip reports graze fields', (() => { const r = checkShip(ship, [mkEnt(1.2, 0)]); return r.grazeCount === 1 && r.grazeClose > 0 && r.hit === null; })());
+ok('checkShip skips gates (fly-through, never lethal/graze)', (() => {
+  const g = { def: { gate: true }, mesh: { position: { x: 0, y: 1.5, z: 0 } }, hx: 2, hy: 2, hz: 0.3, nearMissed: false };
+  const r = checkShip(ship, [g]);
+  return r.hit === null && r.grazeCount === 0;
+})());
 
 console.log('\n# curve + section sampling');
 ok('sampleCurve clamps low', sampleCurve(map.curves.master_rms, -5) === map.curves.master_rms[0]);

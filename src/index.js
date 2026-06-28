@@ -247,6 +247,9 @@ class Game {
     const gain = this.speedAmount >= 0 ? ACCEL.accelGain : ACCEL.brakeGain;
     const speedScale = Math.max(ACCEL.clampLo, Math.min(ACCEL.clampHi, 1 + this.speedAmount * gain + this.boost));
     const gameSpeed = SPEED.base * sect.speed * speedScale;
+    // accel lunges the craft forward on screen (−Z), brake pulls it back; the
+    // ship's real Z drives collision + gate passes, so accel = meet things sooner.
+    this.ship.targetZ = this.speedAmount >= 0 ? -this.speedAmount * ACCEL.lungeFwd : -this.speedAmount * ACCEL.lungeBack;
 
     // input + ship (firing throws light — Phase A "play by the light you make")
     this.ship.update(delta, this.input.getSteer(), this.input.getVertical(), this.input.getRoll(), this.time);
@@ -256,7 +259,7 @@ class Game {
     const ev = this.map.events;
     while (this.cursor < ev.length && ev[this.cursor].time <= songTime) {
       const e = ev[this.cursor++];
-      if (e.type === 'obstacle' || e.type === 'enemy') this.entities.spawn(e);
+      if (e.type === 'obstacle' || e.type === 'enemy' || e.type === 'entity') this.entities.spawn(e);
       else if (e.type === 'effect') this.effects.trigger(e);
     }
 
@@ -288,7 +291,7 @@ class Game {
     }
 
     // gates (Phase 3) — fly-through passes + sequence chain; boost decays
-    const gateRes = this.entities.checkGates(this.ship.x, this.ship.position.y);
+    const gateRes = this.entities.checkGates(this.ship.x, this.ship.position.y, this.ship.position.z);
     for (let i = 0; i < gateRes.passed; i++) this.onGatePass();
     for (let i = 0; i < gateRes.missed; i++) this.onGateMiss();
     this.boost = Math.max(0, this.boost - GATE.boostDecay * delta);

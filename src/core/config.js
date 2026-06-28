@@ -125,6 +125,9 @@ export const ACCEL = {
   clampLo: 0.7,
   clampHi: 1.3,
   scoreBonusAtMax: 0.5,  // +50% kill/graze score at full accel (risk reward)
+  lungeFwd: 2.6,         // how far forward (−Z) the craft surges at full accel
+  lungeBack: 1.6,        // how far back (+Z) it pulls at full brake
+  lungeLerp: 4,          // easing toward the target Z
 };
 
 // Gameplay — barrel roll (Q/E). Skill version: a deflect i-frame window on

@@ -67,7 +67,7 @@ export class EntityManager {
     for (let i = 0; i <= 16; i++) { const t = i / 16; trillPts.push(new THREE.Vector3(t * 0.8 - 0.4, Math.sin(t * Math.PI * 4) * 0.12, 0)); }
     this.geoTrill = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(trillPts), 24, 0.05, 5, false);
     // warm amber "ink/parchment" family so the notation enemies read as a set
-    this.matGlyph = new THREE.MeshPhongMaterial({ color: 0xffcc55, emissive: 0xff8a00, emissiveIntensity: 0.5, transparent: true, opacity: 0.92 });
+    this.matGlyph = new THREE.MeshPhongMaterial({ color: 0xffd87a, emissive: 0xffa520, emissiveIntensity: 0.9, transparent: true, opacity: 1 });
 
     // shared entity materials (constant color/opacity — safe to share)
     this.matPillar = new THREE.MeshPhongMaterial({ color: COLORS.pillar, emissive: 0xff1133, emissiveIntensity: 0.4, transparent: true, opacity: 0.85 });
@@ -140,11 +140,11 @@ export class EntityManager {
   // the ring crosses the ship plane), not a thin z-band — tunnel-proof at high
   // boost / low FPS. True 2-D window so flying over a low ring is a real miss.
   // Returns { passed, missed } this frame.
-  checkGates(shipX, shipY) {
+  checkGates(shipX, shipY, shipZ = 0) {
     let passed = 0, missed = 0;
     for (const e of this.entities) {
       if (!e.def.gate || e.passed || e.missed) continue;
-      if (e.mesh.position.z >= 0) {
+      if (e.mesh.position.z >= shipZ) {
         const within = Math.abs(shipX - e.mesh.position.x) < e.radius
           && Math.abs(shipY - e.mesh.position.y) < e.radius;
         if (within) { e.passed = true; passed++; e.ring.material.opacity = 1; }

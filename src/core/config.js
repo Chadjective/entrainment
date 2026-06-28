@@ -100,6 +100,19 @@ export const SHIP = {
   half: [0.7, 0.45, 0.75],
 };
 
+// Gameplay — accelerate / brake (Shift / Z). Modulates ONLY the world-scroll
+// speed (gameSpeed); the song clock + spawn cursor stay on songTime (R1). The
+// result is clamped to [clampLo, clampHi]; gate boost (Phase 3) adds into it.
+export const ACCEL = {
+  accelGain: 0.3,        // Shift -> up to +30% world speed
+  brakeGain: 0.3,        // Z -> down to -30%
+  smoothIn: 7,           // approach the throttle target
+  decay: 4,              // ease back to neutral when released
+  clampLo: 0.7,
+  clampHi: 1.3,
+  scoreBonusAtMax: 0.5,  // +50% kill/graze score at full accel (risk reward)
+};
+
 // Gameplay — barrel roll (Q/E). Skill version: a deflect i-frame window on
 // entry, then a recover window where the transposed hitbox (not invuln) decides
 // the hit. iframes < active guarantees that recover window exists. Set

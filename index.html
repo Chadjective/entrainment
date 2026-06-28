@@ -105,6 +105,13 @@
       text-shadow: 0 0 12px var(--cyan); opacity: 0.85;
     }
     #hud-shield .empty { color: #2a3a4a; text-shadow: none; }
+    #hud-speed {
+      position: fixed; left: 16px; bottom: 18px; width: 120px; height: 5px;
+      background: rgba(20, 32, 58, 0.7); border: 1px solid #2a3a5a;
+    }
+    #hud-speed-fill { height: 100%; width: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); transition: width 0.08s linear, background 0.2s; }
+    #hud-speed-mark { position: absolute; left: 50%; top: -2px; width: 1px; height: 9px; background: #66809a; } /* neutral (×1.0) tick */
+    #hud-speed-label { position: absolute; left: 0; top: -14px; font-size: 0.5rem; letter-spacing: 0.2em; color: #667788; }
 
     /* ---- death text ---- */
     #death-text {
@@ -153,7 +160,7 @@
       <div class="note">🎧 HEADPHONES RECOMMENDED</div>
       <button id="launch-btn">LAUNCH</button>
       <div class="controls-hint">
-        ← → ↑ ↓ MOVE &nbsp; Q/E ROLL &nbsp; SPACE SHOOT &nbsp; ESC PAUSE<br />
+        ← → ↑ ↓ MOVE &nbsp; Q/E ROLL &nbsp; SHIFT/Z SPEED &nbsp; SPACE FIRE &nbsp; ESC PAUSE<br />
         MOBILE: LEFT / RIGHT · CENTER FIRE
       </div>
     </div>
@@ -176,6 +183,7 @@
       <div class="hud-value" id="hud-kills-value">0</div>
     </div>
     <div id="hud-streak">×1.0</div>
+    <div id="hud-speed"><div id="hud-speed-label">SPEED</div><div id="hud-speed-fill"></div><div id="hud-speed-mark"></div></div>
   </div>
   <div id="pause-btn">⏸</div>
 

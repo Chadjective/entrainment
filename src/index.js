@@ -18,7 +18,7 @@ import { AudioEngine } from './audio/engine.js';
 import { UI, loadHighScore, saveHighScore } from './ui/ui.js';
 import { Input } from './input/input.js';
 import { sectionAt } from './data/loader.js';
-import { SPEED, SCORE, MIX, SCENE, BLOOM, SHIELD, GRAZE, SHIP } from './core/config.js';
+import { SPEED, SCORE, MIX, SCENE, BLOOM, SHIELD, GRAZE, SHIP, ACCEL } from './core/config.js';
 
 const STATE = { LOADING: 'LOADING', MENU: 'MENU', COUNTDOWN: 'COUNTDOWN', PLAYING: 'PLAYING', DEAD: 'DEAD', REWARD: 'REWARD' };
 
@@ -72,6 +72,9 @@ class Game {
     // Gameplay #1 — shield
     this.shieldCharges = SHIELD.max;
     this.shieldRegen = 0;
+    // Phase 2 — accel/brake speed channel (gates add into this.boost later)
+    this.speedAmount = 0;
+    this.boost = 0;
   }
 
   async init() {
@@ -110,6 +113,7 @@ class Game {
     this.ui.showHud();
     this.ui.setShield(this.shieldCharges, SHIELD.max);
     this.ui.setGraze(0);
+    this.ui.setSpeed(1);
     await this.audio.start();
   }
 
@@ -229,7 +233,17 @@ class Game {
       this.audio.setKillGain(0);
     }
     this.prevSection = sect.name;
-    const gameSpeed = SPEED.base * sect.speed;
+
+    // accel/brake (Shift/Z) — modulates ONLY the world-scroll speed. The spawn
+    // cursor + song clock below stay on songTime (R1 invariant: speedAmount must
+    // never reach spawn/song/beat). Gate boost (this.boost) is additive.
+    const throttle = this.input.getThrottle();
+    const rate = throttle !== 0 ? ACCEL.smoothIn : ACCEL.decay;
+    this.speedAmount += (throttle - this.speedAmount) * rate * delta;
+    this.speedAmount = Math.max(-1, Math.min(1, this.speedAmount));
+    const gain = this.speedAmount >= 0 ? ACCEL.accelGain : ACCEL.brakeGain;
+    const speedScale = Math.max(ACCEL.clampLo, Math.min(ACCEL.clampHi, 1 + this.speedAmount * gain + this.boost));
+    const gameSpeed = SPEED.base * sect.speed * speedScale;
 
     // input + ship (firing throws light — Phase A "play by the light you make")
     this.ship.update(delta, this.input.getSteer(), this.input.getVertical(), this.input.getRoll(), this.time);
@@ -300,6 +314,7 @@ class Game {
     if (this.hudTimer >= 0.12) {
       this.hudTimer = 0;
       this.ui.updateHud(this.stats.score, this.stats.kills, this.stats.streak);
+      this.ui.setSpeed(speedScale);
     }
 
     // end of song while alive
@@ -316,11 +331,14 @@ class Game {
     }
   }
 
+  // accelerating amplifies score (risk reward); braking just forgoes the bonus
+  _speedScore() { return 1 + Math.max(0, this.speedAmount) * ACCEL.scoreBonusAtMax; }
+
   onKill(enemy) {
     this.stats.kills++;
     this.stats.streak = Math.min(GRAZE.maxStreak, this.stats.streak + 0.2);
     this.stats.bestStreak = Math.max(this.stats.bestStreak, this.stats.streak);
-    this.stats.score += Math.round(SCORE.kill * this.stats.streak);
+    this.stats.score += Math.round(SCORE.kill * this.stats.streak * this._speedScore());
     // kill reward stem (System 15.2)
     this.killGain = Math.min(1, this.killGain + MIX.killGainPerKill);
     this.audio.setKillGain(this.killGain);
@@ -337,7 +355,7 @@ class Game {
   // Gameplay #2 — continuous grazing: closeness ramps the multiplier + score
   onGraze(close, delta) {
     this.stats.grazes++;
-    this.stats.score += close * GRAZE.pointsPerSec * delta * this.stats.streak;
+    this.stats.score += close * GRAZE.pointsPerSec * delta * this.stats.streak * this._speedScore();
     this.stats.streak = Math.min(GRAZE.maxStreak, this.stats.streak + close * GRAZE.streakPerSec * delta);
     this.stats.bestStreak = Math.max(this.stats.bestStreak, this.stats.streak);
     this.ui.setGraze(close);

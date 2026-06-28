@@ -101,6 +101,14 @@ export class UI {
     $('graze-glow').style.opacity = Math.min(0.8, intensity * 0.8).toFixed(3);
   }
 
+  // Phase 2 — speedometer: scale 0.7..1.3 -> bar 0..100% (×1.0 = centre)
+  setSpeed(scale) {
+    const pct = Math.max(0, Math.min(100, ((scale - 0.7) / 0.6) * 100));
+    const f = $('hud-speed-fill');
+    f.style.width = `${pct.toFixed(0)}%`;
+    f.style.background = scale > 1.01 ? '#9effff' : scale < 0.99 ? '#4a86d8' : 'var(--cyan)';
+  }
+
   // ---- death ----
   showDeath() {
     this.overlays.death.classList.remove('hidden', 'dim');

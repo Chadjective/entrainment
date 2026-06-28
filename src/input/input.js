@@ -59,6 +59,14 @@ export class Input {
     return r;
   }
 
+  // throttle: +1 = accelerate (Shift), -1 = brake (Z), 0 = coast
+  getThrottle() {
+    let t = 0;
+    if (this.keys['Shift']) t += 1;
+    if (this.keys['z'] || this.keys['Z']) t -= 1;
+    return t;
+  }
+
   isFiring() {
     return !!(this.keys[' '] || this.touchDir === 'center');
   }

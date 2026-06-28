@@ -46,8 +46,10 @@ export class EntityManager {
     this.edgesUnitBox = new THREE.EdgesGeometry(this.geoUnitBox);
     this.edgesCube = new THREE.EdgesGeometry(this.geoCube);
     this.edgesDrone = new THREE.EdgesGeometry(this.geoDrone);
+    // beam fires straight forward (+Z) from the drone; the drone now aligns to
+    // the player in BOTH X and Y before firing, so a straight beam aims true.
     this.geoLaser = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -1.5, 12),
+      new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 12),
     ]);
     this.geoGateRing = new THREE.TorusGeometry(GATE.ringRadius, GATE.tube, 8, 10); // octagonal ring
 
@@ -72,6 +74,9 @@ export class EntityManager {
     // shared entity materials (constant color/opacity — safe to share)
     this.matPillar = new THREE.MeshPhongMaterial({ color: COLORS.pillar, emissive: 0xff1133, emissiveIntensity: 0.4, transparent: true, opacity: 0.85 });
     this.matPillarWire = new THREE.LineBasicMaterial({ color: COLORS.pillar, transparent: true, opacity: 0.9 });
+    // overhead "icicle" pillars — cold blue so they read as hanging from above
+    this.matIcicle = new THREE.MeshPhongMaterial({ color: 0x66ccff, emissive: 0x1a5588, emissiveIntensity: 0.4, transparent: true, opacity: 0.85 });
+    this.matIcicleWire = new THREE.LineBasicMaterial({ color: 0xaadfff, transparent: true, opacity: 0.9 });
     this.matCube = new THREE.MeshPhongMaterial({ color: COLORS.cube, emissive: COLORS.cube, emissiveIntensity: 0.35, transparent: true, opacity: 0.85 });
     this.matCubeWire = new THREE.LineBasicMaterial({ color: COLORS.cube, transparent: true, opacity: 0.9 });
     this.matDrone = new THREE.MeshPhongMaterial({ color: COLORS.droneFill, emissive: 0xff2200, emissiveIntensity: 0.5, transparent: true, opacity: 0.9 });

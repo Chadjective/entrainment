@@ -9,7 +9,7 @@
 // ============================================================================
 
 import * as THREE from 'three';
-import { SPEED, COLORS, GATE } from '../core/config.js';
+import { SPEED, COLORS, GATE, CEILING } from '../core/config.js';
 
 export const DEFINITIONS = {
   // Fly-through gate — pass-through (not lethal, not shootable); rewards points
@@ -57,6 +57,33 @@ export const DEFINITIONS = {
       const height = ev.height ?? 2.5;
       r.mesh.scale.set(size, height, 1); // unit box -> size × height × 0.8
       r.mesh.position.set(ev.x, height / 2, SPEED.spawnZ);
+      r.hx = size / 2; r.hy = height / 2; r.hz = 0.4; r.nearMissed = false;
+    },
+  },
+
+  // Overhead "icicle" pillar — dodge-only like the floor pillar, but ANCHORED
+  // to the ceiling and extending down (cold-blue so it reads as hanging from
+  // above). Reaches into the high band a climbing ship occupies, so altitude is
+  // a tradeoff. Same unit box / behaviour as the pillar; only the anchor + tint
+  // differ — a pure data-driven variant, no engine change.
+  pillar_ceiling: {
+    move: 'approach',
+    shootable: false,
+    death: 'none',
+    build(M) {
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(M.geoUnitBox, M.matIcicle));
+      g.add(new THREE.LineSegments(M.edgesUnitBox, M.matIcicleWire));
+      g.visible = false;
+      M.group.add(g);
+      return { type: 'pillar_ceiling', mesh: g, hx: 0, hy: 0, hz: 0.4, nearMissed: false, shootable: false, laser: null, spin: null };
+    },
+    init(r, ev) {
+      const size = ev.size ?? 1.2;
+      const height = ev.height ?? 2.5;
+      r.mesh.scale.set(size, height, 1);
+      // top fixed at the ceiling; centre is half a height below it.
+      r.mesh.position.set(ev.x, CEILING.y - height / 2, SPEED.spawnZ);
       r.hx = size / 2; r.hy = height / 2; r.hz = 0.4; r.nearMissed = false;
     },
   },

@@ -9,7 +9,7 @@
 // The rest are library groundwork the notation roster (Phase 4) will use.
 // ============================================================================
 
-import { SPEED, LASER, COLORS } from '../core/config.js';
+import { SPEED, LASER, COLORS, SHIP } from '../core/config.js';
 
 const zBonus = (e) => e.def.zBonus ?? SPEED.pillarBonus;
 
@@ -53,14 +53,18 @@ export const BEHAVIOURS = {
     e.mesh.rotation.x += (dashing ? 0.18 : 0.02) * ctx.step;
   },
 
-  // fast scroll + lateral player-tracking + wobble; tracking freezes while the
-  // beam charges/fires so the telegraphed lane stays honest (sentinel drones)
+  // fast scroll + lateral AND vertical player-tracking + wobble; tracking
+  // freezes while the beam charges/fires so the telegraphed lane stays honest.
+  // Chasing the player's altitude makes climbing no longer a free escape — the
+  // drone rises to meet a high flier, then locks (sentinel drones).
   track(e, dt, ctx) {
     const aggSpeed = ctx.speed + 0.15 + e.aggression * 0.2;
     e.mesh.position.z += aggSpeed * (e.fast ? 1.5 : 1) * 60 * dt;
     if (!e.fire || e.fire.state === 'idle') {
       e.mesh.position.x += (ctx.playerX - e.mesh.position.x) * e.aggression * 0.5 * dt;
       e.mesh.position.x += Math.sin(ctx.time * 3 + e.offset) * 0.03 * ctx.step;
+      e.mesh.position.y += ((ctx.playerY ?? 1.5) - e.mesh.position.y) * e.aggression * LASER.trackY * dt;
+      e.mesh.position.y = Math.max(SHIP.minY, Math.min(SHIP.maxY, e.mesh.position.y));
       if (e.fire && e.fire.cooldown > 0) e.fire.cooldown -= dt;
     }
   },
@@ -138,7 +142,9 @@ export const ATTACKS = {
     }
     if (f.state === 'firing') {
       f.t -= dt;
-      if (!f.hitDone && ctx.shipInvuln <= 0 && Math.abs(ctx.playerX - m.position.x) < LASER.laneHalf) {
+      if (!f.hitDone && ctx.shipInvuln <= 0
+        && Math.abs(ctx.playerX - m.position.x) < LASER.laneHalf
+        && Math.abs((ctx.playerY ?? 1.5) - m.position.y) < LASER.laneHalfY) {
         ctx.manager.laserHit = true; f.hitDone = true;
       }
       if (f.t <= 0) { f.state = 'idle'; f.cooldown = LASER.cooldown; }

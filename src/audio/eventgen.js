@@ -5,6 +5,8 @@
 // gameplay shape is consistent.
 // ============================================================================
 
+import { CEILING } from '../core/config.js';
+
 const SECTION_DEFS = [
   ['emergence', 1.0], ['awakening', 1.15], ['engagement', 1.25],
   ['breath', 1.0], ['escalation', 1.35], ['apex', 1.5], ['departure', 1.1],
@@ -36,12 +38,22 @@ export function generateEvents(beats, sections, rng, opts = {}) {
     const x = +(Math.sin(bi * 0.7) * 6).toFixed(2);
     const roll = rng();
     if (roll < 0.44) {
-      events.push({
-        time, type: 'obstacle', x,
-        size: +(0.8 + rng() * 1.4).toFixed(2),
-        height: +(1.5 + rng() * 2.0).toFixed(2),
-        persistence: 8,
-      });
+      // pillars come three ways so altitude is a tradeoff, not a free escape:
+      // floor-anchored (climb over), ceiling-anchored (duck under), or a
+      // gauntlet (both, leaving a gap you thread at a specific altitude).
+      const size = +(0.8 + rng() * 1.4).toFixed(2);
+      const sub = rng();
+      if (sub < 0.60) {
+        events.push({ time, type: 'obstacle', x, size, height: +(1.5 + rng() * 2.0).toFixed(2), persistence: 8 });
+      } else if (sub < 0.85) {
+        events.push({ time, type: 'entity', def: 'pillar_ceiling', x, size, height: +(2.0 + rng() * 2.0).toFixed(2), persistence: 8 });
+      } else {
+        // gauntlet: gap centred at gapY (kept so both halves stay ≥1 tall)
+        const gapY = +(1.9 + rng() * 1.4).toFixed(2); // 1.9 .. 3.3
+        const gapHalf = 0.85;
+        events.push({ time, type: 'obstacle', x, size, height: +(gapY - gapHalf).toFixed(2), persistence: 8 });
+        events.push({ time, type: 'entity', def: 'pillar_ceiling', x, size, height: +(CEILING.y - (gapY + gapHalf)).toFixed(2), persistence: 8 });
+      }
     } else if (roll < 0.60) {
       events.push({ time, type: 'enemy', subtype: 'cube', x, aggression: 0.3 });
     } else if (roll < 0.74) {

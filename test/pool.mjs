@@ -8,7 +8,7 @@ import { BulletManager } from '../src/game/bullets.js';
 import { BEHAVIOURS } from '../src/game/behaviours.js';
 import { Ship } from '../src/game/ship.js';
 import { checkShip } from '../src/game/collision.js';
-import { SPEED, SHIP, ROLL } from '../src/core/config.js';
+import { SPEED, SHIP, ROLL, CEILING } from '../src/core/config.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -77,7 +77,20 @@ ok('beam hits ship in lane', d1.laserHit === true);
 const d2 = droneInRange();
 d2.update(0.016, SPEED.base, 0, 3, { onBeat: true, shipInvuln: 0 }); // charge
 d2.update(0.016, SPEED.base, 0, 3, { onBeat: true, shipInvuln: 0 }); // fire; ship dodged to x=3
-ok('dodged beam misses', d2.laserHit === false);
+ok('dodged beam misses (lateral)', d2.laserHit === false);
+
+// beam is a 2-D threat: a vertical climb dodges it too (drone locks at the
+// player's altitude on charge, then a climb takes the ship out of the beam).
+const d2v = droneInRange();
+d2v.update(0.016, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 0, playerY: 1.5 }); // charge (locks ~y1.5)
+d2v.update(0.016, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 0, playerY: 4.2 }); // fire; ship climbed away
+ok('vertical climb dodges the beam', d2v.laserHit === false, `droneY=${d2v.entities[0].mesh.position.y.toFixed(2)}`);
+
+// an idle drone chases the player's altitude (so high-camping isn't free)
+const dyk = droneInRange();
+const dr = dyk.entities[0];
+for (let i = 0; i < 60; i++) { dr.mesh.position.z = -30; dyk.update(0.05, SPEED.base, 0, 0, { onBeat: false, shipInvuln: 0, playerY: 4.0 }); }
+ok('idle drone climbs toward a high player (vertical threat)', dr.mesh.position.y > 2.4, `y=${dr.mesh.position.y.toFixed(2)}`);
 
 const d3 = droneInRange();
 d3.update(0.016, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 1 });
@@ -154,6 +167,24 @@ ok('roster updates ok + rest arms on a beat in range', rm.entities.length === 5 
 const treble = rm.entities.find((e) => e.defKey === 'treble_clef');
 ok('treble spirals in the upper lanes', treble.mesh.position.y > 2.0);
 rm.reset();
+
+console.log('\n# overhead hazards (vertical tradeoff)');
+const om = new EntityManager(fakeScene);
+om.spawn({ type: 'entity', def: 'pillar_ceiling', x: 0, size: 1.2, height: 3.0 });
+const ceilP = om.entities[0];
+ok('ceiling pillar pooled as its own def', ceilP.defKey === 'pillar_ceiling' && !!om.pools.pillar_ceiling);
+ok('ceiling pillar hangs from above (top at the ceiling)', Math.abs((ceilP.mesh.position.y + ceilP.hy) - CEILING.y) < 1e-6, `topY=${(ceilP.mesh.position.y + ceilP.hy).toFixed(2)}`);
+ok('ceiling pillar reaches below maxY (contests the top lane)', ceilP.mesh.position.y - ceilP.hy < SHIP.maxY, `bottomY=${(ceilP.mesh.position.y - ceilP.hy).toFixed(2)}`);
+ok('ceiling pillar is dodge-only (not shootable)', ceilP.shootable === false);
+// a ship parked at the ceiling is no longer safe — it collides with the
+// overhead pillar in its column (top lane is contested, not free).
+ceilP.mesh.position.z = 0;
+const highShip = { x: 0, y: SHIP.maxY, z: 0, hx: SHIP.half[0], hy: SHIP.half[1], hz: SHIP.half[2] };
+ok('high-flying ship hits overhead pillar', checkShip(highShip, om.entities).hit !== null);
+// ...but the overhead pillar leaves the low lane clear (a real tradeoff)
+const lowShip = { x: 0, y: SHIP.minY, z: 0, hx: SHIP.half[0], hy: SHIP.half[1], hz: SHIP.half[2] };
+ok('low lane is clear under the overhead pillar', checkShip(lowShip, om.entities).hit === null);
+om.reset();
 
 console.log('\n# accel lunge (Phase 2)');
 ship.reset();

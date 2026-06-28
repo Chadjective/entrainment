@@ -114,6 +114,12 @@ export const SHIP = {
   half: [0.7, 0.45, 0.75],
 };
 
+// Overhead hazards hang DOWN from this Y. It sits above SHIP.maxY (4.5) so an
+// "icicle" pillar still reaches into the band a high-flying ship can occupy —
+// the top lane is contested, making altitude a tradeoff rather than a free
+// escape. Floor+ceiling "gauntlets" leave a gap you must thread at altitude.
+export const CEILING = { y: 6.5 };
+
 // Gameplay — accelerate / brake (Shift / Z). Modulates ONLY the world-scroll
 // speed (gameSpeed); the song clock + spawn cursor stay on songTime (R1). The
 // result is clamped to [clampLo, clampHi]; gate boost (Phase 3) adds into it.
@@ -190,6 +196,9 @@ export const LASER = {
   fireWindow: 0.14,  // seconds the beam is live
   cooldown: 1.0,     // seconds idle after firing before it can charge again
   laneHalf: 0.9,     // |shipX - droneX| within this = caught in the beam
+  laneHalfY: 0.9,    // |shipY - droneY| within this too — the beam is a 2-D
+                     // threat, so a vertical climb dodges it (no free escape)
+  trackY: 0.6,       // how hard an idle drone chases the player's altitude
 };
 
 // System 15 — performance-reactive mix

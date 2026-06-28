@@ -130,6 +130,7 @@ export class EntityManager {
       speed, time, playerX, step: delta * 60,
       playerY: opts.playerY ?? 1.5,
       waterY: opts.waterY ?? WATER.y, // B1 — surface height for the lane-tell
+      unseen: !!opts.unseen,          // B2 — player is hidden: drones can't lock
       onBeat: !!opts.onBeat, shipInvuln: opts.shipInvuln || 0,
       manager: this,
     };

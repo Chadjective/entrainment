@@ -137,7 +137,9 @@ export const ATTACKS = {
     const m = e.mesh;
     const inRange = m.position.z > LASER.rangeFar && m.position.z < LASER.rangeNear;
     if (ctx.onBeat) {
-      if (f.state === 'idle' && f.cooldown <= 0 && inRange) f.state = 'charging';
+      // B2 — a hidden (unseen) player can't be locked: only the idle->charging
+      // acquisition is gated; a charge already in flight still fires (B1 honesty).
+      if (f.state === 'idle' && f.cooldown <= 0 && inRange && !ctx.unseen) f.state = 'charging';
       else if (f.state === 'charging') { f.state = 'firing'; f.t = LASER.fireWindow; f.hitDone = false; }
     }
     if (f.state === 'firing') {

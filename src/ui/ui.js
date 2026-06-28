@@ -4,7 +4,7 @@
 // just shows/hides and formats.
 // ============================================================================
 
-import { LINKS, HIGH_SCORE_KEY } from '../core/config.js';
+import { LINKS, HIGH_SCORE_KEY, STILLNESS } from '../core/config.js';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString('en-US');
@@ -107,6 +107,20 @@ export class UI {
     const f = $('hud-speed-fill');
     f.style.width = `${pct.toFixed(0)}%`;
     f.style.background = scale > 1.01 ? '#9effff' : scale < 0.99 ? '#4a86d8' : 'var(--cyan)';
+  }
+
+  // B2 — held-breath cover. Shown only in calm sections so its absence in loud
+  // sections is itself information. The fill bar IS the teacher; the label flips
+  // to UNSEEN (steady glow, no blink) at the threshold. The vignette opacity is
+  // tied to the meter (a decision), clamped — no strobe.
+  setStillness(visible, meter, unseen) {
+    const el = $('hud-breath');
+    el.style.opacity = visible ? '1' : '0';
+    $('hud-breath-fill').style.width = `${Math.round(Math.min(1, meter) * 100)}%`;
+    const lbl = $('hud-breath-label');
+    lbl.textContent = unseen ? 'UNSEEN' : 'BE STILL';
+    lbl.classList.toggle('hidden-state', !!unseen);
+    $('hush-glow').style.opacity = (visible ? Math.min(STILLNESS.vignetteMax, meter * STILLNESS.vignetteMax) : 0).toFixed(3);
   }
 
   // Phase 3 — gate sequence chain (cyan; distinct from the gold combat streak)

@@ -117,6 +117,23 @@
       font-size: 0.8rem; letter-spacing: 0.2em; color: var(--cyan);
       text-shadow: 0 0 14px var(--cyan); opacity: 0; transition: opacity 0.3s;
     }
+    /* B2 — held-breath cover (calm-blue, distinct from cyan combat + gold streak) */
+    #hush-glow {
+      position: fixed; inset: 0; pointer-events: none; opacity: 0;
+      box-shadow: inset 0 0 140px 30px rgba(120, 170, 255, 0.5);
+      transition: opacity 0.3s ease;
+    }
+    #hud-breath {
+      position: fixed; top: 66px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      opacity: 0; transition: opacity 0.5s ease; pointer-events: none;
+    }
+    #hud-breath-label {
+      font-size: 0.55rem; letter-spacing: 0.3em; color: #7fb0ff; opacity: 0.85;
+    }
+    #hud-breath-label.hidden-state { color: #bcd8ff; text-shadow: 0 0 12px #7fb0ff; opacity: 1; }
+    #hud-breath-bar { width: 90px; height: 3px; background: rgba(40, 60, 100, 0.6); }
+    #hud-breath-fill { height: 100%; width: 0%; background: #7fb0ff; box-shadow: 0 0 8px #7fb0ff; transition: width 0.12s linear; }
 
     /* ---- death text ---- */
     #death-text {
@@ -178,7 +195,12 @@
   <div id="hud">
     <div id="hud-flash"></div>
     <div id="graze-glow"></div>
+    <div id="hush-glow"></div>
     <div id="hud-shield"></div>
+    <div id="hud-breath">
+      <div id="hud-breath-label">BE STILL</div>
+      <div id="hud-breath-bar"><div id="hud-breath-fill"></div></div>
+    </div>
     <div id="hud-score" class="hud-corner">
       <div class="hud-label">SCORE</div>
       <div class="hud-value" id="hud-score-value">0</div>

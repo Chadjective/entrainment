@@ -179,6 +179,26 @@ export const SHIELD = {
   blinkHz: 14,       // ship blink rate during i-frames
 };
 
+// Fjordnacht B2 — "Stillness Is Cover (Held Breath)". During calm sections
+// (section speed <= calmSpeedMax) holding still + dark fills a meter; past a
+// latched threshold the player goes UNSEEN (drones won't lock), regen speeds up,
+// and a flat score trickles. A per-cover BUDGET drains while unseen and refills
+// only OUTSIDE calm sections, so one calm passage can't be farmed forever; the
+// regen + score payouts taper with the remaining budget (coverScale).
+export const STILLNESS = {
+  calmSpeedMax: 1.0,   // sect.speed <= this is "calm" (emergence + breath)
+  fillSec: 1.6,        // seconds of held stillness to fill the meter
+  drainSec: 0.5,       // seconds for the meter to empty once broken (snappy)
+  hideThreshold: 0.85, // meter >= this -> UNSEEN (enter)
+  hideHysteresis: 0.15,// ...stays unseen until meter < hideThreshold - this (exit 0.70)
+  darkFireMax: 0.05,   // must let fire-light decay below this to count as "dark"
+  regenMult: 2.5,      // shield-regen accumulation multiplier while unseen (×coverScale)
+  pointsPerSec: 40,    // flat calm score/sec while unseen (×coverScale); < GRAZE
+  budgetSec: 9,        // seconds of cover before payouts taper to zero
+  budgetRefill: 0.5,   // budget seconds regained per second OUTSIDE calm sections
+  vignetteMax: 0.35,   // peak opacity of the calm "held breath" vignette
+};
+
 // Gameplay #2 — grazing. Flying close to (but not into) hazards builds the
 // multiplier and trickles score; the closer/longer, the faster it climbs.
 export const GRAZE = {

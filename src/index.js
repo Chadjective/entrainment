@@ -14,11 +14,12 @@ import { BulletManager } from './game/bullets.js';
 import { Effects } from './game/effects.js';
 import { Post } from './game/post.js';
 import { checkShip } from './game/collision.js';
+import { Stillness, isStill } from './game/stillness.js';
 import { AudioEngine } from './audio/engine.js';
 import { UI, loadHighScore, saveHighScore } from './ui/ui.js';
 import { Input } from './input/input.js';
 import { sectionAt } from './data/loader.js';
-import { SPEED, SCORE, MIX, SCENE, BLOOM, SHIELD, GRAZE, SHIP, ACCEL, GATE } from './core/config.js';
+import { SPEED, SCORE, MIX, SCENE, BLOOM, SHIELD, GRAZE, SHIP, ACCEL, GATE, STILLNESS } from './core/config.js';
 
 const STATE = { LOADING: 'LOADING', MENU: 'MENU', COUNTDOWN: 'COUNTDOWN', PLAYING: 'PLAYING', DEAD: 'DEAD', REWARD: 'REWARD' };
 
@@ -32,6 +33,7 @@ class Game {
     this.ship = new Ship(scene);
     this.entities = new EntityManager(scene);
     this.bullets = new BulletManager(scene);
+    this.stillness = new Stillness(); // B2 — held-breath cover meter
     this.post = new Post(renderer, scene, camera);
     this.effects = new Effects({ scene, grid: this.grid, ship: this.ship, lights, post: this.post });
     this.audio = new AudioEngine();
@@ -76,6 +78,8 @@ class Game {
     // Phase 2 — accel/brake speed channel (gates add into this.boost later)
     this.speedAmount = 0;
     this.boost = 0;
+    // B2 — held-breath cover meter + budget
+    this.stillness.reset();
   }
 
   async init() {
@@ -116,6 +120,7 @@ class Game {
     this.ui.setGraze(0);
     this.ui.setSpeed(1);
     this.ui.setGateChain(0);
+    this.ui.setStillness(false, 0, false);
     await this.audio.start();
   }
 
@@ -131,6 +136,7 @@ class Game {
     this.deathCamStart = this.camera.position.clone();
     this.ui.showDeath();
     this.ui.setGraze(0);
+    this.stillness.reset(); this.ui.setStillness(false, 0, false); // B2 — drop cover + hide the breath HUD
     this.gateChain = 0; this.ui.setGateChain(0);
     // commit best streak
     this.stats.streak = 1.0;
@@ -178,7 +184,7 @@ class Game {
   async togglePause() {
     if (this.state !== STATE.PLAYING) return;
     this.paused = !this.paused;
-    if (this.paused) { await this.audio.pause(); this.ui.showPause(); }
+    if (this.paused) { await this.audio.pause(); this.ui.showPause(); this.ui.setStillness(false, 0, false); }
     else { await this.audio.resume(); this.ui.hidePause(); }
   }
 
@@ -255,6 +261,21 @@ class Game {
     this.ship.update(delta, this.input.getSteer(), this.input.getVertical(), this.input.getRoll(), this.time);
     if (this.input.isFiring() && this.bullets.fire(this.time, this.ship.position)) this.effects.fireLevel = 1;
 
+    // B2 — Stillness Is Cover. Calm section + neutral input + gone dark fills the
+    // meter; past the latched threshold the player is UNSEEN. "Dark" leans on the
+    // existing light economy (graze/fire/gate must decay to their floor). Computed
+    // here so ctx.unseen can gate drone targeting in entities.update below; graze
+    // is read one frame stale (effects.grazeLevel), negligible for a slow meter.
+    const calm = sect.speed <= STILLNESS.calmSpeedMax;
+    const still = isStill(calm, {
+      firing: this.input.isFiring(),
+      steer: this.input.getSteer(), vertical: this.input.getVertical(), roll: this.input.getRoll(),
+      throttle: this.input.getThrottle(), invuln: this.ship.invuln,
+      grazeLevel: this.effects.grazeLevel, fireLevel: this.effects.fireLevel, gateLevel: this.effects.gateLevel,
+    });
+    this.stillness.step(calm, still, delta);
+    if (this.stillness.unseen) this.stats.score += this.stillness.scoreRate() * delta; // flat calm trickle
+
     // spawn from event map (advance cursor)
     const ev = this.map.events;
     while (this.cursor < ev.length && ev[this.cursor].time <= songTime) {
@@ -269,7 +290,7 @@ class Game {
     while (this.beatCursor < beats.length && beats[this.beatCursor] <= songTime) { onBeat = true; this.beatCursor++; }
 
     // move world
-    this.entities.update(delta, gameSpeed, this.time, this.ship.x, { onBeat, shipInvuln: this.ship.invuln, playerY: this.ship.position.y, waterY: this.grid.water.position.y });
+    this.entities.update(delta, gameSpeed, this.time, this.ship.x, { onBeat, shipInvuln: this.ship.invuln, playerY: this.ship.position.y, waterY: this.grid.water.position.y, unseen: this.stillness.unseen });
     this.bullets.update(delta, this.entities, (enemy) => this.onKill(enemy));
 
     // collisions + grazing (Gameplay #2)
@@ -296,8 +317,8 @@ class Game {
     for (let i = 0; i < gateRes.missed; i++) this.onGateMiss();
     this.boost = Math.max(0, this.boost - GATE.boostDecay * delta);
 
-    // shield regen after surviving a stretch without a hit
-    this.shieldRegen += delta;
+    // shield regen after surviving a stretch without a hit (B2: unseen accelerates it)
+    this.shieldRegen += delta * this.stillness.regenRate();
     if (this.shieldCharges < SHIELD.max && this.shieldRegen >= SHIELD.regenSec) {
       this.shieldRegen = 0;
       this.shieldCharges++;
@@ -327,6 +348,7 @@ class Game {
       this.hudTimer = 0;
       this.ui.updateHud(this.stats.score, this.stats.kills, this.stats.streak);
       this.ui.setSpeed(speedScale);
+      this.ui.setStillness(calm, this.stillness.meter, this.stillness.unseen);
     }
 
     // end of song while alive
@@ -399,6 +421,7 @@ class Game {
     this.ui.flashHud();
     this.stats.streak = 1.0; // taking a hit breaks the streak
     this.gateChain = 0; this.ui.setGateChain(0); // and the gate chain (R6)
+    this.stillness.reset(); this.ui.setStillness(false, 0, false); // a hit blows your cover (B2)
     if (entity && entity.shootable) this.entities.destroy(entity); // clear it off the ship
   }
 

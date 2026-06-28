@@ -6,7 +6,8 @@ import { generateProceduralSong } from '../src/audio/procedural.js';
 import { intersects, checkShip, grazeCloseness } from '../src/game/collision.js';
 import { sampleCurve, sectionAt } from '../src/data/loader.js';
 import { analyzeSong } from '../src/audio/analyze.js';
-import { SHIP, SCORE } from '../src/core/config.js';
+import { Stillness, isStill } from '../src/game/stillness.js';
+import { SHIP, SCORE, STILLNESS, GRAZE } from '../src/core/config.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -100,6 +101,67 @@ ok('tempo detected ≈ 120', Math.abs(songMap.tempo - 120) <= 8, `tempo=${songMa
 ok('beats ascending & in-range', songMap.beats.length > 4 && songMap.beats.every((b, i, a) => (i === 0 || a[i - 1] < b) && b < 12));
 ok('events generated & sorted', songMap.events.length > 0 && songMap.events.every((e, i, a) => i === 0 || a[i - 1].time <= e.time));
 ok('7 sections + RMS in range', songMap.sections.length === 7 && songMap.curves.master_rms.every((v) => v >= 0 && v <= 1));
+
+console.log('\n# Fjordnacht B2 — stillness cover meter');
+const stp = (s, calm, still, dt, n) => { for (let i = 0; i < n; i++) s.step(calm, still, dt); };
+const sB = new Stillness();
+stp(sB, true, true, 1 / 60, 110);                  // ~1.8s of held breath in a calm section
+ok('held breath fills to UNSEEN', sB.meter === 1 && sB.unseen === true, `meter=${sB.meter}`);
+sB.step(true, true, 1); ok('meter clamps at 1', sB.meter === 1);
+stp(sB, true, false, 1 / 60, 40);                  // break stillness
+ok('breaking stillness drops cover', sB.meter <= 0.70 && sB.unseen === false, `meter=${sB.meter}`);
+// hysteresis: at meter 0.80 the latch depends on the prior state (delta 0 = meter held)
+const hUp = new Stillness(); hUp.meter = 0.80; hUp.unseen = true; hUp.step(true, true, 0);
+const hDn = new Stillness(); hDn.meter = 0.80; hDn.unseen = false; hDn.step(true, true, 0);
+ok('hysteresis: stays unseen at 0.80', hUp.unseen === true);
+ok('hysteresis: stays seen at 0.80 (needs 0.85 to enter)', hDn.unseen === false);
+const sG = new Stillness(); stp(sG, false, true, 1 / 60, 200);
+ok('no cover outside a calm section', sG.meter === 0 && sG.unseen === false);
+const sR = new Stillness(); stp(sR, true, true, 1 / 60, 110); sR.reset();
+ok('reset clears meter + unseen + budget', sR.meter === 0 && sR.unseen === false && sR.coverScale === 1);
+// reward rates are pure functions of (unseen, coverScale)
+const rr = new Stillness();
+ok('seen -> no reward (regen 1x, score 0)', rr.regenRate() === 1 && rr.scoreRate() === 0);
+rr.unseen = true; rr.coverScale = 1;
+ok('unseen + full budget -> peak rewards', Math.abs(rr.regenRate() - STILLNESS.regenMult) < 1e-9 && Math.abs(rr.scoreRate() - STILLNESS.pointsPerSec) < 1e-9);
+rr.coverScale = 0;
+ok('unseen + spent budget -> rewards taper to baseline', rr.regenRate() === 1 && rr.scoreRate() === 0);
+// anti-camp: holding unseen drains the budget to zero
+const sD = new Stillness(); stp(sD, true, true, 1 / 60, 110); stp(sD, true, true, 1 / 60, 60 * 12);
+ok('budget drains while unseen (anti-camp)', sD.unseen === true && sD.budget === 0 && sD.coverScale === 0, `budget=${sD.budget}`);
+// budget refills only OUTSIDE calm sections
+const sF = new Stillness(); sF.budget = 0; sF.coverScale = 0; stp(sF, false, false, 1 / 60, 60 * 4);
+ok('budget refills outside calm', sF.budget > 1.5, `budget=${sF.budget.toFixed(2)}`);
+ok('calm score ceiling below loud (graze)', STILLNESS.pointsPerSec < GRAZE.pointsPerSec);
+// cover drops the INSTANT a section turns loud (pins the `if (!calm) unseen=false` guard:
+// unseen must flip false even though the meter is still well above the exit threshold)
+const sCarry = new Stillness(); stp(sCarry, true, true, 1 / 60, 110);
+sCarry.step(false, true, 1 / 60);
+ok('unseen drops immediately when the section turns loud', sCarry.unseen === false && sCarry.meter > STILLNESS.hideThreshold, `meter=${sCarry.meter.toFixed(2)}`);
+
+// the `still` PREDICATE — the real per-frame gameplay condition (truth table)
+const base = { firing: false, steer: 0, vertical: 0, roll: 0, throttle: 0, invuln: 0, grazeLevel: 0, fireLevel: 0, gateLevel: 0 };
+ok('isStill: all-neutral in a calm section => still', isStill(true, base) === true);
+ok('isStill: not calm => never still', isStill(false, base) === false);
+ok('isStill: firing breaks it', isStill(true, { ...base, firing: true }) === false);
+ok('isStill: accel (throttle>0) breaks it, brake (throttle<0) is allowed',
+  isStill(true, { ...base, throttle: 1 }) === false && isStill(true, { ...base, throttle: -1 }) === true);
+ok('isStill: steer / vertical / roll each break it',
+  isStill(true, { ...base, steer: 1 }) === false && isStill(true, { ...base, vertical: -1 }) === false && isStill(true, { ...base, roll: 1 }) === false);
+ok('isStill: i-frame blink breaks it', isStill(true, { ...base, invuln: 0.5 }) === false);
+ok('isStill: grazing / gate light break it',
+  isStill(true, { ...base, grazeLevel: 0.2 }) === false && isStill(true, { ...base, gateLevel: 0.2 }) === false);
+ok('isStill: fire-light must decay below darkFireMax',
+  isStill(true, { ...base, fireLevel: STILLNESS.darkFireMax - 0.001 }) === true && isStill(true, { ...base, fireLevel: STILLNESS.darkFireMax + 0.01 }) === false);
+
+// reward APPLICATION math (the index.js call-site accrual, simulated headlessly)
+const sAcc = new Stillness(); stp(sAcc, true, true, 1 / 60, 110); // unseen
+const dt = 1 / 60, frames = 30, cs = sAcc.coverScale;
+let scoreAcc = 0, regenAcc = 0;
+for (let i = 0; i < frames; i++) { if (sAcc.unseen) scoreAcc += sAcc.scoreRate() * dt; regenAcc += dt * sAcc.regenRate(); }
+ok('unseen accrues calm score = pointsPerSec×coverScale×t', Math.abs(scoreAcc - STILLNESS.pointsPerSec * cs * dt * frames) < 1e-9);
+ok('unseen accelerates regen accrual (×regenMult×coverScale)', Math.abs(regenAcc - dt * frames * (1 + (STILLNESS.regenMult - 1) * cs)) < 1e-9);
+ok('vignette ceiling is a clamped opacity', STILLNESS.vignetteMax > 0 && STILLNESS.vignetteMax <= 1);
 
 console.log(`\n# scoring sanity`);
 ok('near-miss award = 50', SCORE.nearMiss === 50);

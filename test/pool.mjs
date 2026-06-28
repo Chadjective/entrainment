@@ -101,6 +101,16 @@ const d4 = droneInRange();
 d4.update(0.016, SPEED.base, 0, 0, { onBeat: false, shipInvuln: 0 }); // no beat -> no charge
 ok('no fire without a beat', d4.entities[0].fire.state === 'idle');
 
+// B2 — an UNSEEN (hidden) player can't be locked: drones won't START a charge
+const dHide = droneInRange();
+dHide.update(0.016, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 0, unseen: true });
+ok('unseen player: drone cannot acquire a charge', dHide.entities[0].fire.state === 'idle');
+// ...but a charge already in flight still fires (B1 telegraph honesty preserved)
+const dInflight = droneInRange();
+dInflight.update(0.016, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 0, unseen: false }); // -> charging
+dInflight.update(0.016, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 0, unseen: true });  // go hidden mid-charge
+ok('going hidden mid-charge does not cancel the beam', dInflight.entities[0].fire.state === 'firing');
+
 console.log('\n# B1 reflected telegraph (read it in the water)');
 const WY = -0.5; // custom water height proves opts.waterY threads through to the tell
 const tgm = droneInRange();

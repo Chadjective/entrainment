@@ -12,7 +12,7 @@
 // ============================================================================
 
 import * as THREE from 'three';
-import { SPEED, COLORS, GATE } from '../core/config.js';
+import { SPEED, COLORS, GATE, WATER } from '../core/config.js';
 import { Pool } from '../core/pool.js';
 import { BEHAVIOURS, ATTACKS } from './behaviours.js';
 import { DEFINITIONS, legacyDefKey } from './definitions.js';
@@ -52,6 +52,9 @@ export class EntityManager {
       new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 12),
     ]);
     this.geoGateRing = new THREE.TorusGeometry(GATE.ringRadius, GATE.tube, 8, 10); // octagonal ring
+    // B1 — unit plane for the drone's water lane-tell (scaled per frame to the
+    // lane width × the distance to the player; lies flat on the water surface).
+    this.geoTelegraph = new THREE.PlaneGeometry(1, 1);
 
     // notation roster glyphs (built ONCE, shared across instances — R9)
     const clefPts = [];
@@ -126,6 +129,7 @@ export class EntityManager {
     const ctx = {
       speed, time, playerX, step: delta * 60,
       playerY: opts.playerY ?? 1.5,
+      waterY: opts.waterY ?? WATER.y, // B1 — surface height for the lane-tell
       onBeat: !!opts.onBeat, shipInvuln: opts.shipInvuln || 0,
       manager: this,
     };
@@ -177,6 +181,9 @@ export class EntityManager {
   _releaseEntity(index) {
     const e = this.entities[index];
     e.mesh.visible = false;
+    // B1 — kill any active water lane-tell so a recycled drone never leaves a
+    // stray glow floating on the surface (the telegraph mesh lives in M.group).
+    if (e.telegraph) { e.telegraph.visible = false; e.telegraph.material.opacity = 0; }
     this._pool(e.defKey).release(e);
     this.entities.splice(index, 1);
   }
@@ -214,13 +221,23 @@ export class EntityManager {
 
   // slow ambient drift used during the death state
   drift(delta, speed) {
-    for (const e of this.entities) e.mesh.position.z += speed * 60 * delta;
+    for (const e of this.entities) {
+      e.mesh.position.z += speed * 60 * delta;
+      // ATTACKS.beam doesn't run during the death drift, so clear any lane-tell
+      // here — otherwise a drone caught mid-charge freezes its glow on the water
+      // through the whole death + reward sequence (B1 leak).
+      if (e.telegraph) { e.telegraph.visible = false; e.telegraph.material.opacity = 0; e.telegraphing = false; }
+    }
     this._updateDebris(delta);
   }
 
   reset() {
     // return everything to its pool (recycled across runs — no disposal)
-    for (const e of this.entities) { e.mesh.visible = false; this._pool(e.defKey).release(e); }
+    for (const e of this.entities) {
+      e.mesh.visible = false;
+      if (e.telegraph) { e.telegraph.visible = false; e.telegraph.material.opacity = 0; }
+      this._pool(e.defKey).release(e);
+    }
     for (const d of this.debris) { d.mesh.visible = false; d._pool.release(d); }
     this.entities.length = 0;
     this.debris.length = 0;

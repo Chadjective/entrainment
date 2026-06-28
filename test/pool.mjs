@@ -8,7 +8,7 @@ import { BulletManager } from '../src/game/bullets.js';
 import { BEHAVIOURS } from '../src/game/behaviours.js';
 import { Ship } from '../src/game/ship.js';
 import { checkShip } from '../src/game/collision.js';
-import { SPEED, SHIP, ROLL, CEILING } from '../src/core/config.js';
+import { SPEED, SHIP, ROLL, CEILING, LASER, WATER } from '../src/core/config.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -100,6 +100,75 @@ ok('beam ignored during i-frames', d3.laserHit === false);
 const d4 = droneInRange();
 d4.update(0.016, SPEED.base, 0, 0, { onBeat: false, shipInvuln: 0 }); // no beat -> no charge
 ok('no fire without a beat', d4.entities[0].fire.state === 'idle');
+
+console.log('\n# B1 reflected telegraph (read it in the water)');
+const WY = -0.5; // custom water height proves opts.waterY threads through to the tell
+const tgm = droneInRange();
+const tgd = tgm.entities[0];
+tgm.update(0.016, SPEED.base, 0.1, 0, { onBeat: true, shipInvuln: 0, waterY: WY }); // -> charging
+ok('charging: real beam dark, water tell on', tgd.fire.state === 'charging' && tgd.laser.visible === false && tgd.telegraph.visible === true && tgd.telegraphing === true, `state=${tgd.fire.state} laser=${tgd.laser.visible} tg=${tgd.telegraph.visible}`);
+ok('tell lies flat on the water at the drone lane', Math.abs(tgd.telegraph.position.y - (WY + LASER.telegraphLift)) < 1e-6 && tgd.telegraph.position.x === tgd.mesh.position.x && tgd.telegraph.scale.x === LASER.laneHalf * 2, `y=${tgd.telegraph.position.y} x=${tgd.telegraph.position.x} sx=${tgd.telegraph.scale.x}`);
+// the strip's z-EXTENT (scale.y) is the load-bearing dimension: it must span
+// from the drone to the front, reaching toward the player (property, not formula)
+ok('tell spans the lane from the drone to the front (z-extent)',
+  Math.abs(tgd.telegraph.scale.y - Math.max(0.5, LASER.telegraphFront - tgd.mesh.position.z)) < 1e-6
+  && Math.abs((tgd.telegraph.position.z - tgd.telegraph.scale.y / 2) - tgd.mesh.position.z) < 1e-6
+  && Math.abs((tgd.telegraph.position.z + tgd.telegraph.scale.y / 2) - LASER.telegraphFront) < 1e-6,
+  `sy=${tgd.telegraph.scale.y.toFixed(2)} z=${tgd.telegraph.position.z.toFixed(2)}`);
+// opacity stays clamped (photosensitivity): bounded ABOVE by peak AND below by a
+// nonzero floor (0.2×peak) — a calm shimmer that never strobes to black
+let tgMax = 0, tgMin = 1;
+for (let i = 0; i < 40; i++) { tgm.update(0.016, SPEED.base, i * 0.05, 0, { onBeat: false, shipInvuln: 0, waterY: WY }); if (tgd.fire.state === 'charging') { tgMax = Math.max(tgMax, tgd.telegraph.material.opacity); tgMin = Math.min(tgMin, tgd.telegraph.material.opacity); } }
+ok('tell opacity clamped both ends — no strobe', tgMax <= LASER.telegraphOpacity + 1e-9 && tgMin >= LASER.telegraphOpacity * 0.2 - 1e-9, `min=${tgMin.toFixed(3)} max=${tgMax.toFixed(3)} peak=${LASER.telegraphOpacity}`);
+
+// default branch: omit waterY -> falls back to WATER.y (the value index.js feeds
+// from grid.water.position.y, which is set to WATER.y); covers the ?? default.
+const tgDef = droneInRange();
+const tgDefD = tgDef.entities[0];
+tgDef.update(0.016, SPEED.base, 0.1, 0, { onBeat: true, shipInvuln: 0 });
+ok('tell uses WATER.y when waterY omitted (default branch)', tgDefD.telegraph.visible === true && Math.abs(tgDefD.telegraph.position.y - (WATER.y + LASER.telegraphLift)) < 1e-6, `y=${tgDefD.telegraph.position.y}`);
+
+// honest lane: once a charging drone scrolls PAST the front, no tell is drawn
+const tgPast = droneInRange();
+const tgPastD = tgPast.entities[0];
+tgPast.update(0.016, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 0, waterY: WY }); // -> charging (in range)
+tgPastD.mesh.position.z = LASER.telegraphFront + 2;                                  // scrolled past the player
+tgPast.update(0.016, SPEED.base, 0, 0, { onBeat: false, shipInvuln: 0, waterY: WY }); // still charging, now past front
+ok('no tell once a charging drone passes the front', tgPastD.fire.state === 'charging' && tgPastD.telegraph.visible === false && tgPastD.telegraphing === false, `state=${tgPastD.fire.state} z=${tgPastD.mesh.position.z.toFixed(1)}`);
+
+const tgf = droneInRange();
+const tgfd = tgf.entities[0];
+tgf.update(0.016, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 0, waterY: WY }); // charge
+tgf.update(0.016, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 0, waterY: WY }); // fire
+ok('firing: real beam on, water tell off', tgfd.fire.state === 'firing' && tgfd.laser.visible === true && tgfd.telegraph.visible === false && tgfd.telegraphing === false);
+for (let i = 0; i < 20; i++) tgf.update(0.05, SPEED.base, 1 + i, 0, { onBeat: false, shipInvuln: 0, waterY: WY }); // let firing expire
+ok('idle: real beam + tell both cleared', tgfd.fire.state === 'idle' && tgfd.laser.visible === false && tgfd.telegraph.visible === false && tgfd.telegraph.material.opacity === 0);
+
+// death leak: dying mid-charge runs drift() (not update()) — the tell must still clear
+const tgDeath = droneInRange();
+const tgDeathD = tgDeath.entities[0];
+tgDeath.update(0.016, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 0, waterY: WY }); // charging, tell up
+ok('precondition: tell visible before death', tgDeathD.telegraph.visible === true);
+tgDeath.drift(0.016, 0.03); // the death sequence path
+ok('death drift clears the lane-tell (no frozen glow)', tgDeathD.telegraph.visible === false && tgDeathD.telegraph.material.opacity === 0 && tgDeathD.telegraphing === false);
+
+// reset() mid-charge clears the tell and returns the drone to its pool
+const tgReset = droneInRange();
+const tgResetD = tgReset.entities[0];
+tgReset.update(0.016, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 0, waterY: WY }); // charging, tell up
+tgReset.reset();
+ok('reset() mid-charge clears the tell + pools the drone', tgReset.entities.length === 0 && tgResetD.telegraph.visible === false && tgResetD.telegraph.material.opacity === 0);
+
+// recycle hygiene: a drone SHOT mid-charge (destroy -> _releaseEntity) must not leave a glow
+const tgr = droneInRange();
+const tgrd = tgr.entities[0];
+tgr.update(0.016, SPEED.base, 0, 0, { onBeat: true, shipInvuln: 0, waterY: WY }); // charging, tell up
+ok('precondition: tell visible before kill', tgrd.telegraph.visible === true);
+tgr.destroy(tgrd); // shot mid-charge
+ok('killed mid-charge clears the stray tell', tgr.entities.length === 0 && tgrd.telegraph.visible === false && tgrd.telegraph.material.opacity === 0);
+const tgCreated = tgr.pools.drone.created;
+tgr.spawn({ type: 'enemy', subtype: 'drone', x: 0, aggression: 0.5 });
+ok('recycled drone: pooled tell reused (no realloc) + clean', tgr.pools.drone.created === tgCreated && tgr.entities[0].telegraph.visible === false && tgr.entities[0].telegraph.material.opacity === 0);
 
 console.log('\n# data-driven entity system (Phase 0)');
 const em2 = new EntityManager(fakeScene);

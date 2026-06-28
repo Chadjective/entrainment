@@ -199,6 +199,15 @@ export const LASER = {
   laneHalfY: 0.9,    // |shipY - droneY| within this too — the beam is a 2-D
                      // threat, so a vertical climb dodges it (no free escape)
   trackY: 0.6,       // how hard an idle drone chases the player's altitude
+  // B1 Reflected Telegraph — while a drone is CHARGING, the real-space beam
+  // stays dark and the incoming lane is shown only as a glow on the mirror
+  // water (read it in the water, one beat before it resolves). Drawn as owned
+  // geometry ON the surface so it reads identically on the Reflector and the
+  // flat-fallback plane. Tied to the charge decision; opacity clamped for
+  // photosensitivity (a calm shimmer, never a strobe).
+  telegraphFront: 4,      // z the water lane-tell reaches toward the player
+  telegraphLift: 0.02,    // height above the water surface (avoids z-fighting)
+  telegraphOpacity: 0.4,  // peak opacity of the lane glow
 };
 
 // System 15 — performance-reactive mix

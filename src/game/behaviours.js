@@ -9,7 +9,7 @@
 // The rest are library groundwork the notation roster (Phase 4) will use.
 // ============================================================================
 
-import { SPEED, LASER, COLORS, SHIP } from '../core/config.js';
+import { SPEED, LASER, SHIP } from '../core/config.js';
 
 const zBonus = (e) => e.def.zBonus ?? SPEED.pillarBonus;
 
@@ -149,17 +149,38 @@ export const ATTACKS = {
       }
       if (f.t <= 0) { f.state = 'idle'; f.cooldown = LASER.cooldown; }
     }
-    if (f.state === 'charging') {
-      e.laser.visible = true;
-      e.laser.material.color.set(COLORS.drone);
-      e.laser.material.opacity = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(ctx.time * 18));
-    } else if (f.state === 'firing') {
+    // B1 Reflected Telegraph — "read it in the water". While charging, the
+    // real-space beam stays DARK; the only tell is the incoming lane glowing on
+    // the mirror surface (the drone is frozen + aimed, so the water shows the
+    // true lane one beat early). On firing, the real white beam resolves.
+    if (f.state === 'firing') {
       e.laser.visible = true;
       e.laser.material.color.set(0xffffff);
       e.laser.material.opacity = 1;
     } else {
       e.laser.visible = false;
       e.laser.material.opacity = 0;
+    }
+
+    // Only show the tell while there's real lane between the drone and the
+    // front: a drone keeps scrolling during its charge, and once it passes the
+    // player (z >= telegraphFront) there's nothing left to telegraph.
+    const tg = e.telegraph;
+    if (f.state === 'charging' && m.position.z < LASER.telegraphFront) {
+      // a flat lane on the water at the drone's frozen x, reaching from the
+      // drone (live z — it keeps scrolling) toward the player.
+      const zBack = m.position.z;
+      const zFront = LASER.telegraphFront;
+      tg.visible = true;
+      tg.position.set(m.position.x, ctx.waterY + LASER.telegraphLift, (zFront + zBack) / 2);
+      tg.scale.set(LASER.laneHalf * 2, Math.max(0.5, zFront - zBack), 1);
+      // calm shimmer in [0.2,1.0]×peak — tied to the charge, never a strobe.
+      tg.material.opacity = LASER.telegraphOpacity * (0.6 + 0.4 * Math.sin(ctx.time * 16));
+      e.telegraphing = true;
+    } else {
+      tg.visible = false;
+      tg.material.opacity = 0;
+      e.telegraphing = false;
     }
   },
 };

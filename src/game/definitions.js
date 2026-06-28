@@ -128,8 +128,18 @@ export const DEFINITIONS = {
       g.add(fill, wire, laser);
       g.visible = false;
       M.group.add(g);
+      // B1 — the water lane-tell. Lives in WORLD space (M.group, not the drone
+      // group) so it can sit flat on the surface independent of the drone's
+      // cone rotation. Per-instance material so each drone shimmers on its own.
+      const telegraph = new THREE.Mesh(
+        M.geoTelegraph,
+        new THREE.MeshBasicMaterial({ color: COLORS.drone, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }),
+      );
+      telegraph.rotation.x = -Math.PI / 2; // lie flat (normal up), like the water
+      telegraph.visible = false;
+      M.group.add(telegraph);
       return {
-        type: 'drone', mesh: g, laser, hx: 0.4, hy: 0.4, hz: 0.6, nearMissed: false, shootable: true,
+        type: 'drone', mesh: g, laser, telegraph, telegraphing: false, hx: 0.4, hy: 0.4, hz: 0.6, nearMissed: false, shootable: true,
         aggression: 0.5, fast: false, offset: 0, spin: null,
         fire: { state: 'idle', t: 0, hitDone: false, cooldown: 0 },
       };
@@ -138,6 +148,9 @@ export const DEFINITIONS = {
       r.mesh.position.set(ev.x, 1.5, SPEED.spawnZ);
       r.laser.visible = false;
       r.laser.material.opacity = 0;
+      r.telegraph.visible = false;
+      r.telegraph.material.opacity = 0;
+      r.telegraphing = false;
       r.nearMissed = false;
       r.aggression = ev.aggression ?? 0.5;
       r.fast = ev.subtype === 'drone_fast';

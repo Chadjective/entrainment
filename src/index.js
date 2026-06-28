@@ -249,7 +249,7 @@ class Game {
     while (this.beatCursor < beats.length && beats[this.beatCursor] <= songTime) { onBeat = true; this.beatCursor++; }
 
     // move world
-    this.entities.update(delta, gameSpeed, this.time, this.ship.x, { onBeat, shipInvuln: this.ship.invuln });
+    this.entities.update(delta, gameSpeed, this.time, this.ship.x, { onBeat, shipInvuln: this.ship.invuln, playerY: this.ship.position.y });
     this.bullets.update(delta, this.entities, (enemy) => this.onKill(enemy));
 
     // collisions + grazing (Gameplay #2)

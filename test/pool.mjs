@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { EntityManager } from '../src/game/entities.js';
 import { BulletManager } from '../src/game/bullets.js';
+import { BEHAVIOURS } from '../src/game/behaviours.js';
 import { SPEED } from '../src/core/config.js';
 
 let pass = 0, fail = 0;
@@ -21,16 +22,16 @@ const em = new EntityManager(fakeScene);
 // wave 1: spawn 5 cubes
 for (let i = 0; i < 5; i++) em.spawn({ type: 'enemy', subtype: 'cube', x: 0 });
 ok('5 cubes active', em.entities.length === 5);
-ok('cube pool built 5', em.cubePool.created === 5, `created=${em.cubePool.created}`);
+ok('cube pool built 5', em.pools.cube.created === 5, `created=${em.pools.cube.created}`);
 
 // despawn them all
 em.entities.forEach(despawn);
 em.update(0.016, SPEED.base, 0, 0);
-ok('all cubes recycled', em.entities.length === 0 && em.cubePool._free.length === 5, `free=${em.cubePool._free.length}`);
+ok('all cubes recycled', em.entities.length === 0 && em.pools.cube._free.length === 5, `free=${em.pools.cube._free.length}`);
 
 // wave 2: spawn 5 more -> must REUSE, not allocate
 for (let i = 0; i < 5; i++) em.spawn({ type: 'enemy', subtype: 'cube', x: 0 });
-ok('wave 2 reuses (no new allocation)', em.cubePool.created === 5, `created=${em.cubePool.created}`);
+ok('wave 2 reuses (no new allocation)', em.pools.cube.created === 5, `created=${em.pools.cube.created}`);
 
 // pillars: unit box scaled + hitbox from event
 em.spawn({ type: 'obstacle', x: 1.5, size: 2.0, height: 3.0 });
@@ -51,11 +52,11 @@ for (let i = 0; i < 60; i++) em.update(0.05, SPEED.base, 0, 0);
 ok('debris recycled after fade', em.debris.length === 0 && em.particlePool._free.length >= 8, `free=${em.particlePool._free.length}`);
 
 // reset returns everything, pools persist
-const builtBefore = em.cubePool.created;
+const builtBefore = em.pools.cube.created;
 em.reset();
 ok('reset clears active', em.entities.length === 0 && em.debris.length === 0);
 em.spawn({ type: 'enemy', subtype: 'cube', x: 0 });
-ok('post-reset reuses pool (no realloc)', em.cubePool.created === builtBefore, `created=${em.cubePool.created} vs ${builtBefore}`);
+ok('post-reset reuses pool (no realloc)', em.pools.cube.created === builtBefore, `created=${em.pools.cube.created} vs ${builtBefore}`);
 
 console.log('\n# drone beam (Gameplay #3)');
 function droneInRange() {
@@ -84,6 +85,24 @@ ok('beam ignored during i-frames', d3.laserHit === false);
 const d4 = droneInRange();
 d4.update(0.016, SPEED.base, 0, 0, { onBeat: false, shipInvuln: 0 }); // no beat -> no charge
 ok('no fire without a beat', d4.entities[0].fire.state === 'idle');
+
+console.log('\n# data-driven entity system (Phase 0)');
+const em2 = new EntityManager(fakeScene);
+// explicit {type:'entity', def} form spawns the right kind
+em2.spawn({ type: 'entity', def: 'cube', x: 0 });
+ok('explicit {type:entity,def} spawns', em2.entities.length === 1 && em2.entities[0].defKey === 'cube');
+// the whole point: a BRAND-NEW enemy is pure config — no engine change
+em2.defs.testdrifter = {
+  move: 'driftDown', shootable: true, death: 'mini',
+  build(M) { const g = new THREE.Group(); g.add(new THREE.Mesh(M.geoCube, M.matCube)); g.visible = false; M.group.add(g); return { type: 'testdrifter', mesh: g, hx: 0.4, hy: 0.4, hz: 0.4, nearMissed: false, shootable: true, laser: null, spin: null }; },
+  init(r, ev) { r.mesh.position.set(ev.x, 3, SPEED.spawnZ); },
+};
+em2.spawn({ type: 'entity', def: 'testdrifter', x: 0 });
+const blob = em2.entities[em2.entities.length - 1];
+const y0 = blob.mesh.position.y;
+em2.update(0.1, SPEED.base, 0, 0);
+ok('new def: pooled + moves via library behaviour', blob.defKey === 'testdrifter' && !!em2.pools.testdrifter && blob.mesh.position.y < y0 && blob.mesh.position.z > SPEED.spawnZ);
+ok('behaviour library present', ['approach', 'weave', 'track', 'spiral', 'seek', 'barrier', 'hover', 'tumble', 'spin', 'driftDown'].every((b) => typeof BEHAVIOURS[b] === 'function'));
 
 console.log('\n# bullet pooling');
 const bm = new BulletManager(fakeScene);

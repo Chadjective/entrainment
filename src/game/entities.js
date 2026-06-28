@@ -1,18 +1,21 @@
 // ============================================================================
-// System 7 — Obstacles & enemies + spawn manager (pooled — System 14).
-//   - Grid pillars: dodge-only, indestructible (unit-box geometry scaled per
-//     spawn so even variable-size pillars recycle).
-//   - Data cubes: shootable, scatter into mini-cubes.
-//   - Sentinel drones: shootable, track the player, laser preview.
-// Geometry + entity materials are built ONCE and shared. Meshes are recycled
-// through pools (acquire/hide) instead of allocate/dispose, so a full run adds
-// no per-spawn GC pressure. Only per-particle debris owns its own material
-// (because its opacity fades independently); those recycle too.
+// System 7 — Obstacles & enemies + spawn manager (data-driven — FEATURE-SPEC
+// Phase 0). Entity kinds are DEFINITIONS (definitions.js); movement is a named
+// BEHAVIOUR (behaviours.js). The manager is generic: it builds shared geometry
+// /materials once, pools one recycler per definition key, and dispatches
+// spawn / update / destroy through the definition — no per-type branches.
+// Adding an enemy/obstacle/gate is a definition entry, not new engine code.
+//
+// Geometry + entity materials are built ONCE and shared; meshes recycle through
+// pools (acquire/hide), so a full run adds no per-spawn GC pressure. Only
+// per-particle debris owns its own (fading) material; those recycle too.
 // ============================================================================
 
 import * as THREE from 'three';
-import { SPEED, COLORS, LASER } from '../core/config.js';
+import { SPEED, COLORS } from '../core/config.js';
 import { Pool } from '../core/pool.js';
+import { BEHAVIOURS, ATTACKS } from './behaviours.js';
+import { DEFINITIONS, legacyDefKey } from './definitions.js';
 
 export class EntityManager {
   constructor(scene) {
@@ -23,11 +26,12 @@ export class EntityManager {
     this.debris = [];   // mini-cubes + explosion particles (no collision)
     this.laserHit = false; // set when a drone beam catches the player this frame
 
+    this.defs = DEFINITIONS;
+    this.pools = {}; // def key -> Pool (lazily built)
+
     this._buildSharedResources();
 
-    this.pillarPool = new Pool(() => this._makePillar());
-    this.cubePool = new Pool(() => this._makeCube());
-    this.dronePool = new Pool(() => this._makeDrone());
+    // debris pools (shared geometry; per-instance fading material)
     this.miniPool = new Pool(() => this._makeDebris(this.geoMini, COLORS.cube));
     this.particlePool = new Pool(() => this._makeDebris(this.geoParticle, 0xffffff));
   }
@@ -53,45 +57,21 @@ export class EntityManager {
     this.matCubeWire = new THREE.LineBasicMaterial({ color: COLORS.cube, transparent: true, opacity: 0.9 });
     this.matDrone = new THREE.MeshPhongMaterial({ color: COLORS.droneFill, emissive: 0xff2200, emissiveIntensity: 0.5, transparent: true, opacity: 0.9 });
     this.matDroneWire = new THREE.LineBasicMaterial({ color: COLORS.drone, transparent: true, opacity: 0.9 });
-    this.matLaser = new THREE.LineBasicMaterial({ color: COLORS.droneFill, transparent: true, opacity: 0.3 });
   }
 
-  // ---- pool factories ----------------------------------------------------
-  _makePillar() {
-    const g = new THREE.Group();
-    g.add(new THREE.Mesh(this.geoUnitBox, this.matPillar));
-    g.add(new THREE.LineSegments(this.edgesUnitBox, this.matPillarWire));
-    g.visible = false;
-    this.group.add(g);
-    return { type: 'pillar', mesh: g, hx: 0, hy: 0, hz: 0.4, nearMissed: false, shootable: false, laser: null, spin: null };
-  }
-
-  _makeCube() {
-    const g = new THREE.Group();
-    g.add(new THREE.Mesh(this.geoCube, this.matCube));
-    g.add(new THREE.LineSegments(this.edgesCube, this.matCubeWire));
-    g.visible = false;
-    this.group.add(g);
-    return { type: 'cube', mesh: g, hx: 0.45, hy: 0.45, hz: 0.45, nearMissed: false, shootable: true, laser: null, spin: new THREE.Vector3(), offset: 0 };
-  }
-
-  _makeDrone() {
-    const g = new THREE.Group();
-    const fill = new THREE.Mesh(this.geoDrone, this.matDrone);
-    const wire = new THREE.LineSegments(this.edgesDrone, this.matDroneWire);
-    fill.rotation.x = Math.PI / 2; // point toward +Z (the player)
-    wire.rotation.x = Math.PI / 2;
-    // per-drone laser material so the telegraph/fire can flare independently
-    const laser = new THREE.Line(this.geoLaser, new THREE.LineBasicMaterial({ color: COLORS.droneFill, transparent: true, opacity: 0 }));
-    laser.visible = false;
-    g.add(fill, wire, laser);
-    g.visible = false;
-    this.group.add(g);
-    return {
-      type: 'drone', mesh: g, laser, hx: 0.4, hy: 0.4, hz: 0.6, nearMissed: false, shootable: true,
-      aggression: 0.5, fast: false, offset: 0, spin: null,
-      fire: { state: 'idle', t: 0, hitDone: false, cooldown: 0 },
-    };
+  // one pool per definition key, built lazily; the factory attaches def + key
+  _pool(key) {
+    let p = this.pools[key];
+    if (!p) {
+      const def = this.defs[key];
+      p = this.pools[key] = new Pool(() => {
+        const r = def.build(this);
+        r.def = def;
+        r.defKey = key;
+        return r;
+      });
+    }
+    return p;
   }
 
   // debris owns its own material (opacity fades per-instance)
@@ -103,121 +83,38 @@ export class EntityManager {
     return { mesh, vel: new THREE.Vector3(), life: 0, maxLife: 1, baseOpacity: 1 };
   }
 
-  _poolFor(type) {
-    return type === 'pillar' ? this.pillarPool : type === 'cube' ? this.cubePool : this.dronePool;
-  }
-
   // ---- spawning ----------------------------------------------------------
+  // Accepts either the explicit form {type:'entity', def:'cube', ...} or the
+  // legacy event-map form {type:'obstacle'|'enemy', subtype, ...}.
   spawn(ev) {
-    if (ev.type === 'obstacle') return this._spawnPillar(ev);
-    if (ev.type === 'enemy') return ev.subtype === 'cube' ? this._spawnCube(ev) : this._spawnDrone(ev);
-  }
-
-  _spawnPillar(ev) {
-    const size = ev.size ?? 1.2;
-    const height = ev.height ?? 2.5;
-    const r = this.pillarPool.acquire();
-    r.mesh.scale.set(size, height, 1); // unit box -> size × height × 0.8
-    r.mesh.position.set(ev.x, height / 2, SPEED.spawnZ);
+    const key = ev.def || legacyDefKey(ev);
+    const def = key && this.defs[key];
+    if (!def) return;
+    const r = this._pool(key).acquire();
+    def.init(r, ev, this);
     r.mesh.visible = true;
-    r.hx = size / 2; r.hy = height / 2; r.hz = 0.4; r.nearMissed = false;
-    this.entities.push(r);
-  }
-
-  _spawnCube(ev) {
-    const r = this.cubePool.acquire();
-    r.mesh.position.set(ev.x, 1.2 + Math.random() * 0.8, SPEED.spawnZ);
-    r.mesh.rotation.set(0, 0, 0);
-    r.mesh.visible = true;
-    r.nearMissed = false;
-    r.offset = Math.random() * Math.PI * 2;
-    r.spin.set((Math.random() - 0.5) * 0.04, (Math.random() - 0.5) * 0.04, 0);
-    this.entities.push(r);
-  }
-
-  _spawnDrone(ev) {
-    const r = this.dronePool.acquire();
-    r.mesh.position.set(ev.x, 1.5, SPEED.spawnZ);
-    r.mesh.visible = true;
-    r.laser.visible = false;
-    r.laser.material.opacity = 0;
-    r.nearMissed = false;
-    r.aggression = ev.aggression ?? 0.5;
-    r.fast = ev.subtype === 'drone_fast';
-    r.offset = Math.random() * Math.PI * 2;
-    r.fire.state = 'idle'; r.fire.t = 0; r.fire.hitDone = false; r.fire.cooldown = 0;
     this.entities.push(r);
   }
 
   // ---- per-frame ---------------------------------------------------------
-  // opts: { onBeat:boolean, shipInvuln:number } — drives beat-synced drone fire
+  // opts: { onBeat:boolean, shipInvuln:number, playerY:number }
   update(delta, speed, time, playerX, opts = {}) {
-    const step = delta * 60;
-    const onBeat = !!opts.onBeat;
-    const shipInvuln = opts.shipInvuln || 0;
+    const ctx = {
+      speed, time, playerX, step: delta * 60,
+      playerY: opts.playerY ?? 1.5,
+      onBeat: !!opts.onBeat, shipInvuln: opts.shipInvuln || 0,
+      manager: this,
+    };
     this.laserHit = false;
 
     for (let i = this.entities.length - 1; i >= 0; i--) {
       const e = this.entities[i];
-      const m = e.mesh;
-
-      if (e.type === 'pillar') {
-        m.position.z += (speed + SPEED.pillarBonus) * 60 * delta;
-      } else if (e.type === 'cube') {
-        m.position.z += (speed + SPEED.pillarBonus) * 60 * delta;
-        m.position.x += Math.sin(time + e.offset) * 0.02 * step;
-        m.rotation.x += e.spin.x * step;
-        m.rotation.y += e.spin.y * step;
-      } else {
-        this._updateDrone(e, m, delta, step, speed, time, playerX, onBeat, shipInvuln);
-      }
-
-      if (m.position.z > SPEED.despawnZ) this._releaseEntity(i);
+      BEHAVIOURS[e.def.move](e, delta, ctx);
+      if (e.def.attack) ATTACKS[e.def.attack](e, delta, ctx);
+      if (e.mesh.position.z > SPEED.despawnZ) this._releaseEntity(i);
     }
 
     this._updateDebris(delta);
-  }
-
-  // Gameplay #3 — drone movement + beat-synced beam attack.
-  _updateDrone(e, m, delta, step, speed, time, playerX, onBeat, shipInvuln) {
-    const f = e.fire;
-    const aggSpeed = speed + 0.15 + e.aggression * 0.2;
-    m.position.z += aggSpeed * (e.fast ? 1.5 : 1) * 60 * delta;
-
-    // track + wobble only while idle (lane is frozen during charge/fire)
-    if (f.state === 'idle') {
-      m.position.x += (playerX - m.position.x) * e.aggression * 0.5 * delta;
-      m.position.x += Math.sin(time * 3 + e.offset) * 0.03 * step;
-      if (f.cooldown > 0) f.cooldown -= delta;
-    }
-
-    const inRange = m.position.z > LASER.rangeFar && m.position.z < LASER.rangeNear;
-    if (onBeat) {
-      if (f.state === 'idle' && f.cooldown <= 0 && inRange) f.state = 'charging'; // lock + telegraph
-      else if (f.state === 'charging') { f.state = 'firing'; f.t = LASER.fireWindow; f.hitDone = false; }
-    }
-
-    if (f.state === 'firing') {
-      f.t -= delta;
-      if (!f.hitDone && shipInvuln <= 0 && Math.abs(playerX - m.position.x) < LASER.laneHalf) {
-        this.laserHit = true; f.hitDone = true;
-      }
-      if (f.t <= 0) { f.state = 'idle'; f.cooldown = LASER.cooldown; }
-    }
-
-    // beam visuals: dim pulsing telegraph -> bright white fire -> off
-    if (f.state === 'charging') {
-      e.laser.visible = true;
-      e.laser.material.color.set(COLORS.drone);
-      e.laser.material.opacity = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(time * 18));
-    } else if (f.state === 'firing') {
-      e.laser.visible = true;
-      e.laser.material.color.set(0xffffff);
-      e.laser.material.opacity = 1;
-    } else {
-      e.laser.visible = false;
-      e.laser.material.opacity = 0;
-    }
   }
 
   _updateDebris(delta) {
@@ -238,16 +135,17 @@ export class EntityManager {
   _releaseEntity(index) {
     const e = this.entities[index];
     e.mesh.visible = false;
-    this._poolFor(e.type).release(e);
+    this._pool(e.defKey).release(e);
     this.entities.splice(index, 1);
   }
 
   // ---- destruction (by bullet) ------------------------------------------
   destroy(entity) {
     const pos = entity.mesh.position;
-    if (entity.type === 'cube') {
+    const death = entity.def.death;
+    if (death === 'mini') {
       for (let i = 0; i < 4; i++) this._spawnDebris(this.miniPool, pos, COLORS.cube, 0.9, 0.8, 0.3);
-    } else if (entity.type === 'drone') {
+    } else if (death === 'explode') {
       for (let i = 0; i < 8; i++) this._spawnDebris(this.particlePool, pos, COLORS.drone, 1, 0.6, 0.4);
     }
     const idx = this.entities.indexOf(entity);
@@ -280,7 +178,7 @@ export class EntityManager {
 
   reset() {
     // return everything to its pool (recycled across runs — no disposal)
-    for (const e of this.entities) { e.mesh.visible = false; this._poolFor(e.type).release(e); }
+    for (const e of this.entities) { e.mesh.visible = false; this._pool(e.defKey).release(e); }
     for (const d of this.debris) { d.mesh.visible = false; d._pool.release(d); }
     this.entities.length = 0;
     this.debris.length = 0;

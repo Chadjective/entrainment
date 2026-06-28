@@ -9,9 +9,36 @@
 // ============================================================================
 
 import * as THREE from 'three';
-import { SPEED, COLORS } from '../core/config.js';
+import { SPEED, COLORS, GATE } from '../core/config.js';
 
 export const DEFINITIONS = {
+  // Fly-through gate — pass-through (not lethal, not shootable); rewards points
+  // + a speed boost + a sequence multiplier. Per-instance material so each ring
+  // can glow on approach / flash on pass / redden on miss independently.
+  gate: {
+    move: 'gate',
+    shootable: false,
+    death: 'none',
+    gate: true,
+    build(M) {
+      const g = new THREE.Group();
+      const mat = new THREE.MeshBasicMaterial({ color: GATE.color, transparent: true, opacity: 0.7 });
+      const ring = new THREE.Mesh(M.geoGateRing, mat);
+      g.add(ring);
+      g.visible = false;
+      M.group.add(g);
+      return { type: 'gate', mesh: g, ring, hx: 0, hy: 0, hz: 0.3, nearMissed: false, shootable: false, radius: GATE.radius, passed: false, missed: false };
+    },
+    init(r, ev) {
+      r.mesh.position.set(ev.x ?? 0, ev.y ?? 1.5, SPEED.spawnZ);
+      r.mesh.rotation.set(0, 0, 0);
+      r.radius = ev.radius ?? GATE.radius;
+      r.passed = false; r.missed = false;
+      r.ring.material.color.set(GATE.color);
+      r.ring.material.opacity = 0.7;
+    },
+  },
+
   // Grid pillar — dodge-only, indestructible, unit box scaled per spawn.
   pillar: {
     move: 'approach',

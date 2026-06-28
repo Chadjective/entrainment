@@ -18,7 +18,7 @@ import { AudioEngine } from './audio/engine.js';
 import { UI, loadHighScore, saveHighScore } from './ui/ui.js';
 import { Input } from './input/input.js';
 import { sectionAt } from './data/loader.js';
-import { SPEED, SCORE, MIX, SCENE, BLOOM, SHIELD, GRAZE, SHIP, ACCEL } from './core/config.js';
+import { SPEED, SCORE, MIX, SCENE, BLOOM, SHIELD, GRAZE, SHIP, ACCEL, GATE } from './core/config.js';
 
 const STATE = { LOADING: 'LOADING', MENU: 'MENU', COUNTDOWN: 'COUNTDOWN', PLAYING: 'PLAYING', DEAD: 'DEAD', REWARD: 'REWARD' };
 
@@ -57,7 +57,8 @@ class Game {
   }
 
   _resetStats() {
-    this.stats = { score: 0, kills: 0, streak: 1.0, bestStreak: 1.0, nearMisses: 0, grazes: 0 };
+    this.stats = { score: 0, kills: 0, streak: 1.0, bestStreak: 1.0, nearMisses: 0, grazes: 0, bestChain: 0 };
+    this.gateChain = 0; // Phase 3 — consecutive gates passed
     this.survivalTime = 0;
     this.killGain = 0;
     this.survivalApplied = -1;
@@ -114,6 +115,7 @@ class Game {
     this.ui.setShield(this.shieldCharges, SHIELD.max);
     this.ui.setGraze(0);
     this.ui.setSpeed(1);
+    this.ui.setGateChain(0);
     await this.audio.start();
   }
 
@@ -129,6 +131,7 @@ class Game {
     this.deathCamStart = this.camera.position.clone();
     this.ui.showDeath();
     this.ui.setGraze(0);
+    this.gateChain = 0; this.ui.setGateChain(0);
     // commit best streak
     this.stats.streak = 1.0;
     this.ui.updateHud(this.stats.score, this.stats.kills, this.stats.streak);
@@ -284,6 +287,12 @@ class Game {
       }
     }
 
+    // gates (Phase 3) — fly-through passes + sequence chain; boost decays
+    const gateRes = this.entities.checkGates(this.ship.x, this.ship.position.y);
+    for (let i = 0; i < gateRes.passed; i++) this.onGatePass();
+    for (let i = 0; i < gateRes.missed; i++) this.onGateMiss();
+    this.boost = Math.max(0, this.boost - GATE.boostDecay * delta);
+
     // shield regen after surviving a stretch without a hit
     this.shieldRegen += delta;
     if (this.shieldCharges < SHIELD.max && this.shieldRegen >= SHIELD.regenSec) {
@@ -352,6 +361,21 @@ class Game {
     this.ui.flashHud();
   }
 
+  // Phase 3 — gate chain (independent of the combat streak, R6)
+  onGatePass() {
+    this.gateChain++;
+    this.stats.bestChain = Math.max(this.stats.bestChain, this.gateChain);
+    this.stats.score += Math.round(GATE.points * this.gateChain * this._speedScore());
+    this.boost = Math.min(GATE.boostMax, this.boost + GATE.boost); // into the shared speed channel
+    this.effects.gateLevel = 1;
+    this.ui.setGateChain(this.gateChain);
+  }
+
+  onGateMiss() {
+    this.gateChain = 0;
+    this.ui.setGateChain(0);
+  }
+
   // Gameplay #2 — continuous grazing: closeness ramps the multiplier + score
   onGraze(close, delta) {
     this.stats.grazes++;
@@ -371,6 +395,7 @@ class Game {
     this.ui.setShield(this.shieldCharges, SHIELD.max);
     this.ui.flashHud();
     this.stats.streak = 1.0; // taking a hit breaks the streak
+    this.gateChain = 0; this.ui.setGateChain(0); // and the gate chain (R6)
     if (entity && entity.shootable) this.entities.destroy(entity); // clear it off the ship
   }
 

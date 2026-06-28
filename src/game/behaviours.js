@@ -41,6 +41,17 @@ export const BEHAVIOURS = {
     }
   },
 
+  // fly-through gate: scroll toward the player, slow self-spin, brighten on
+  // approach (telegraphs the pass window). Per-instance material (e.ring).
+  gate(e, dt, ctx) {
+    e.mesh.position.z += (ctx.speed + zBonus(e)) * 60 * dt;
+    e.mesh.rotation.z += 0.4 * dt;
+    if (!e.passed && !e.missed) {
+      const near = Math.max(0, Math.min(1, (e.mesh.position.z + 35) / 35));
+      e.ring.material.opacity = 0.55 + near * 0.45;
+    }
+  },
+
   // ---- library groundwork (used by the notation roster, Phase 4) ----------
   // scroll + spin in place (e.g. time-signature, sharp)
   spin(e, dt, ctx) {

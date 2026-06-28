@@ -112,6 +112,11 @@
     #hud-speed-fill { height: 100%; width: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); transition: width 0.08s linear, background 0.2s; }
     #hud-speed-mark { position: absolute; left: 50%; top: -2px; width: 1px; height: 9px; background: #66809a; } /* neutral (×1.0) tick */
     #hud-speed-label { position: absolute; left: 0; top: -14px; font-size: 0.5rem; letter-spacing: 0.2em; color: #667788; }
+    #hud-gatechain {
+      position: fixed; right: 16px; bottom: 16px;
+      font-size: 0.8rem; letter-spacing: 0.2em; color: var(--cyan);
+      text-shadow: 0 0 14px var(--cyan); opacity: 0; transition: opacity 0.3s;
+    }
 
     /* ---- death text ---- */
     #death-text {
@@ -184,6 +189,7 @@
     </div>
     <div id="hud-streak">×1.0</div>
     <div id="hud-speed"><div id="hud-speed-label">SPEED</div><div id="hud-speed-fill"></div><div id="hud-speed-mark"></div></div>
+    <div id="hud-gatechain"></div>
   </div>
   <div id="pause-btn">⏸</div>
 

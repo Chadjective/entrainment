@@ -7,6 +7,7 @@ import { EntityManager } from '../src/game/entities.js';
 import { BulletManager } from '../src/game/bullets.js';
 import { BEHAVIOURS } from '../src/game/behaviours.js';
 import { Ship } from '../src/game/ship.js';
+import { checkShip } from '../src/game/collision.js';
 import { SPEED, SHIP, ROLL } from '../src/core/config.js';
 
 let pass = 0, fail = 0;
@@ -123,6 +124,22 @@ ok('level hitbox normal', hbL.hx === SHIP.half[0] && hbL.hy === SHIP.half[1]);
 for (let i = 0; i < 60; i++) ship.update(1 / 60, 0, 0, 0, i / 60); // finish + cooldown
 ok('roll completes -> ready again', ship.rollState === 'idle' && ship.roll === 0 && ship.rollReady === true);
 ok('iframes < active (recover window exists)', ROLL.iframes < ROLL.active);
+
+console.log('\n# fly-through gates (Phase 3)');
+const gm = new EntityManager(fakeScene);
+gm.spawn({ type: 'entity', def: 'gate', x: 0, y: 1.5 });
+const gate = gm.entities[0];
+ok('gate spawns (pass-through, gate flag)', gate.defKey === 'gate' && gate.shootable === false && gate.def.gate === true);
+ok('no resolve before crossing the ship plane', gm.checkGates(0, 1.5).passed === 0 && gate.passed === false);
+gate.mesh.position.z = 0.5; // crossed the ship plane, ship aligned in X+Y
+ok('aligned cross -> pass', gm.checkGates(0, 1.5).passed === 1 && gate.passed === true);
+ok('pass is latched (resolves once)', gm.checkGates(0, 1.5).passed === 0);
+gm.spawn({ type: 'entity', def: 'gate', x: 0, y: 1.5 });
+const gate2 = gm.entities[gm.entities.length - 1];
+gate2.mesh.position.set(0, 1.5, 0.5);
+ok('flew over the ring (Y) -> miss', gm.checkGates(0, 4.0).missed === 1 && gate2.missed === true);
+gm.entities.forEach((e) => { e.mesh.position.z = 0; }); // overlap the ship
+ok('gates never lethal (checkShip skips them)', checkShip({ x: 0, y: 1.5, z: 0, hx: 0.7, hy: 0.45, hz: 0.75 }, gm.entities).hit === null);
 
 console.log('\n# bullet pooling');
 const bm = new BulletManager(fakeScene);

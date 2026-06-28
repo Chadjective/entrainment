@@ -49,7 +49,21 @@ export const LIGHT = {
   grazeGain: 1.2,      // + graze closeness
   fireGain: 0.9,       // + recent fire
   fireDecay: 6,        // per-second decay of the fire light
+  gateGain: 1.0,       // + a gate pass (decays)
   maxPlayer: 2.4,      // clamp
+};
+
+// Gameplay — fly-through gates (Star Fox rings) + sequence multiplier.
+export const GATE = {
+  ringRadius: 2.0,     // torus major radius (the visible ring)
+  tube: 0.13,
+  radius: 1.8,         // pass window: within this of centre (X and Y) = a pass
+  points: 150,         // base score per pass (× the gate chain)
+  boost: 0.14,         // speed boost added to the shared channel per pass
+  boostMax: 0.3,       // cap on accumulated gate boost
+  boostDecay: 0.4,     // per-second decay of the boost
+  color: 0x00ffff,
+  missColor: 0xff3355,
 };
 
 // Fjordnacht Phase A — reflective fjord floor (the "black mirror water").

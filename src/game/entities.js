@@ -12,7 +12,7 @@
 // ============================================================================
 
 import * as THREE from 'three';
-import { SPEED, COLORS } from '../core/config.js';
+import { SPEED, COLORS, GATE } from '../core/config.js';
 import { Pool } from '../core/pool.js';
 import { BEHAVIOURS, ATTACKS } from './behaviours.js';
 import { DEFINITIONS, legacyDefKey } from './definitions.js';
@@ -49,6 +49,7 @@ export class EntityManager {
     this.geoLaser = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -1.5, 12),
     ]);
+    this.geoGateRing = new THREE.TorusGeometry(GATE.ringRadius, GATE.tube, 8, 10); // octagonal ring
 
     // shared entity materials (constant color/opacity — safe to share)
     this.matPillar = new THREE.MeshPhongMaterial({ color: COLORS.pillar, emissive: 0xff1133, emissiveIntensity: 0.4, transparent: true, opacity: 0.85 });
@@ -115,6 +116,24 @@ export class EntityManager {
     }
 
     this._updateDebris(delta);
+  }
+
+  // Phase 3 — gate pass-through. A LATCHED half-space test (resolve once when
+  // the ring crosses the ship plane), not a thin z-band — tunnel-proof at high
+  // boost / low FPS. True 2-D window so flying over a low ring is a real miss.
+  // Returns { passed, missed } this frame.
+  checkGates(shipX, shipY) {
+    let passed = 0, missed = 0;
+    for (const e of this.entities) {
+      if (!e.def.gate || e.passed || e.missed) continue;
+      if (e.mesh.position.z >= 0) {
+        const within = Math.abs(shipX - e.mesh.position.x) < e.radius
+          && Math.abs(shipY - e.mesh.position.y) < e.radius;
+        if (within) { e.passed = true; passed++; e.ring.material.opacity = 1; }
+        else { e.missed = true; missed++; e.ring.material.color.set(GATE.missColor); }
+      }
+    }
+    return { passed, missed };
   }
 
   _updateDebris(delta) {

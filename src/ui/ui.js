@@ -109,6 +109,13 @@ export class UI {
     f.style.background = scale > 1.01 ? '#9effff' : scale < 0.99 ? '#4a86d8' : 'var(--cyan)';
   }
 
+  // Phase 3 — gate sequence chain (cyan; distinct from the gold combat streak)
+  setGateChain(n) {
+    const el = $('hud-gatechain');
+    if (n > 0) { el.textContent = `GATES ×${n}`; el.style.opacity = '1'; }
+    else { el.style.opacity = '0'; }
+  }
+
   // ---- death ----
   showDeath() {
     this.overlays.death.classList.remove('hidden', 'dim');
@@ -134,7 +141,7 @@ export class UI {
     $('reward-score').textContent = fmt(stats.score);
     $('reward-newhigh').style.display = stats.isHighScore ? 'block' : 'none';
     $('reward-stats').innerHTML =
-      `${stats.kills} DESTROYED<br>${stats.nearMisses} NEAR MISSES<br>BEST STREAK: ×${stats.bestStreak.toFixed(1)}`;
+      `${stats.kills} DESTROYED<br>${stats.nearMisses} NEAR MISSES<br>BEST STREAK: ×${stats.bestStreak.toFixed(1)}<br>BEST GATE CHAIN: ×${stats.bestChain || 0}`;
     this._shareScore = stats.score;
   }
 

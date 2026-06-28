@@ -29,6 +29,7 @@ export class Effects {
     // Phase A — "play by the light you make": the orchestrator feeds these.
     this.grazeLevel = 0; // current graze closeness (0..1)
     this.fireLevel = 0;  // decays after each shot
+    this.gateLevel = 0;  // pulses on a gate pass, decays
   }
 
   setMap(map) {
@@ -90,10 +91,12 @@ export class Effects {
     const piano = sampleCurve(c.piano_rms, songTime);
     this.lights.ambient.intensity = LIGHT.ambientBase + piano * LIGHT.ambientMusic;
     this.fireLevel = Math.max(0, this.fireLevel - delta * LIGHT.fireDecay);
+    this.gateLevel = Math.max(0, this.gateLevel - delta * 3);
     const player = LIGHT.playerBase
       + this.ship.flash * LIGHT.flashGain
       + this.grazeLevel * LIGHT.grazeGain
-      + this.fireLevel * LIGHT.fireGain;
+      + this.fireLevel * LIGHT.fireGain
+      + this.gateLevel * LIGHT.gateGain;
     this.lights.point.intensity = Math.min(LIGHT.maxPlayer, player);
     this.lights.point.color.copy(temp);
 
@@ -120,6 +123,7 @@ export class Effects {
     this.bloom = 0;
     this.grazeLevel = 0;
     this.fireLevel = 0;
+    this.gateLevel = 0;
     this.scene.fog.near = 40;
     this.scene.fog.far = 90;
   }

@@ -60,6 +60,20 @@ export function generateEvents(beats, sections, rng, opts = {}) {
     events.push({ time: s.time, type: 'section', section: s.name });
   });
 
+  // Gate runs (Star Fox rings) — a chain of fly-through gates on a weaving path
+  // every ~24 beats. Hazards keep spawning around them (thread-under-fire).
+  for (let bi = (opts.introBeats ?? 8) + 12; bi < beats.length - 6; bi += 24) {
+    for (let k = 0; k < 4; k++) {
+      const b = bi + k * 2;
+      if (b >= beats.length) break;
+      events.push({
+        time: beats[b], type: 'entity', def: 'gate',
+        x: +(Math.sin((bi + k) * 0.9) * 5).toFixed(2),
+        y: +(1.5 + Math.sin((bi + k) * 1.3) * 1.2).toFixed(2),
+      });
+    }
+  }
+
   events.sort((a, b) => a.time - b.time);
   return events;
 }

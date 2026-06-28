@@ -45,6 +45,7 @@ export function checkShip(shipBox, entities) {
   let grazeCount = 0;
   let grazeClose = 0;
   for (const e of entities) {
+    if (e.def && e.def.gate) continue; // gates are fly-through: never lethal, never a graze
     const box = entityBox(e);
     if (intersects(shipBox, box)) { hit = e; break; }
     const c = grazeCloseness(shipBox, SCORE.nearMissPad, box);
